@@ -1,0 +1,345 @@
+from ..models.core_models import AnalysisReport, ExecutionContext, TaskState
+from ..utils.logger import get_logger
+from typing import List, Dict, Any
+import time
+
+
+class ResultSynthesizer:
+    """AI 代理的结果综合器。"""
+    
+    def __init__(self):
+        """初始化结果综合器。"""
+        self.logger = get_logger(__name__)
+    
+    def synthesize(self, context: ExecutionContext) -> AnalysisReport:
+        """
+        从执行上下文综合分析报告。
+        
+        Args:
+            context: 包含结果的执行上下文
+            
+        Returns:
+            分析报告
+        """
+        start_time = time.time()
+        
+        try:
+            # 确定任务是否成功
+            success = context.state == TaskState.COMPLETED or (
+                len([step for step in context.history if step.success]) > 0
+            )
+            
+            # 生成摘要
+            summary = self._generate_summary(context)
+            
+            # 从执行历史中提取详细信息
+            details = self._extract_details(context)
+            
+            # 从执行中提取洞察
+            insights = self._extract_insights(context)
+            
+            # 根据执行生成建议
+            recommendations = self._generate_recommendations(context)
+            
+            # 计算执行时间
+            execution_time = time.time() - start_time
+            
+            # 处理任何错误
+            error = None
+            if context.state == TaskState.FAILED:
+                # 在历史中查找最后一个错误
+                errors = [step.error for step in context.history if not step.success and step.error]
+                if errors:
+                    error = errors[-1]
+            
+            report = AnalysisReport(
+                task_id=context.task_id,
+                success=success,
+                summary=summary,
+                details=details,
+                insights=insights,
+                recommendations=recommendations,
+                execution_time=execution_time,
+                error=error
+            )
+            
+            self.logger.info(f"Generated analysis report for task {context.task_id}")
+            
+            return report
+        except Exception as e:
+            self.logger.error(f"Error synthesizing results: {e}")
+            
+            return AnalysisReport(
+                task_id=context.task_id,
+                success=False,
+                summary="Error occurred during result synthesis",
+                details={"error": str(e)},
+                insights=["Could not generate insights due to internal error"],
+                recommendations=["Retry the analysis or contact support"],
+                execution_time=time.time() - start_time,
+                error=str(e)
+            )
+    
+    def generate_report(self, context: ExecutionContext) -> str:
+        """
+        Generate a human-readable report from the execution context.
+        
+        Args:
+            context: The execution context containing results
+            
+        Returns:
+            A string representation of the analysis report
+        """
+        report = self.synthesize(context)
+        
+        report_str = f"""
+Cheat Engine AI Agent - Analysis Report
+=======================================
+
+Task ID: {report.task_id}
+Success: {'Yes' if report.success else 'No'}
+Execution Time: {report.execution_time:.2f}s
+
+Summary:
+{report.summary}
+
+Details:
+"""
+        
+        for key, value in report.details.items():
+            report_str += f"- {key}: {value}\n"
+        
+        if report.insights:
+            report_str += "\nKey Insights:\n"
+            for i, insight in enumerate(report.insights, 1):
+                report_str += f"{i}. {insight}\n"
+        
+        if report.recommendations:
+            report_str += "\nRecommendations:\n"
+            for i, recommendation in enumerate(report.recommendations, 1):
+                report_str += f"{i}. {recommendation}\n"
+        
+        if report.error:
+            report_str += f"\nError:\n{report.error}\n"
+        
+        return report_str
+    
+    def extract_insights(self, context: ExecutionContext) -> List[str]:
+        """
+        Extract key insights from the execution context.
+        
+        Args:
+            context: The execution context containing results
+            
+        Returns:
+            A list of key insights
+        """
+        return self._extract_insights(context)
+    
+    def generate_code(self, context: ExecutionContext, requirements: dict) -> str:
+        """
+        Generate code based on the execution results and requirements.
+        
+        Args:
+            context: The execution context containing results
+            requirements: Requirements for the generated code
+            
+        Returns:
+            Generated code as a string
+        """
+        try:
+            # Analyze the execution results to understand the memory layout, functions, etc.
+            code_parts = []
+            
+            # Add header comment
+            code_parts.append(f"// Generated by Cheat Engine AI Agent")
+            code_parts.append(f"// Task ID: {context.task_id}")
+            code_parts.append(f"// Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            code_parts.append("")
+            
+            # Look for memory addresses and patterns in the results
+            memory_addresses = []
+            for step in context.history:
+                if step.success and step.result:
+                    # Extract addresses from various types of results
+                    if isinstance(step.result, dict):
+                        # Common keys that might contain addresses
+                        for key in ['address', 'addresses', 'addr']:
+                            if key in step.result:
+                                val = step.result[key]
+                                if isinstance(val, int):
+                                    memory_addresses.append(f"0x{val:X}")
+                                elif isinstance(val, list):
+                                    memory_addresses.extend([f"0x{v:X}" for v in val if isinstance(v, int)])
+            
+            # Generate code based on the type of analysis performed
+            if requirements.get('type') == 'auto_assembler_script':
+                # Generate Auto Assembler script
+                code_parts.append("[ENABLE]")
+                code_parts.append("// Code injected here")
+                for addr in memory_addresses[:3]:  # Use first 3 addresses as examples
+                    code_parts.append(f"alloc(newmem,128,\"{addr}\")")
+                    code_parts.append(f"label(return)")
+                    code_parts.append(f"newmem:")
+                    code_parts.append(f"  // Your code here")
+                    code_parts.append(f"return:")
+                    code_parts.append(f"  jmp {addr}")
+                    code_parts.append("")
+                
+                code_parts.append("[DISABLE]")
+                for addr in memory_addresses[:3]:
+                    code_parts.append(f"dealloc(newmem)")
+            
+            elif requirements.get('type') == 'lua_script':
+                # Generate Lua script
+                code_parts.append("--[[")
+                code_parts.append("Generated Lua script for Cheat Engine")
+                code_parts.append("--]]")
+                code_parts.append("")
+                code_parts.append("local CheatEngine = {}")
+                code_parts.append("")
+                
+                for addr in memory_addresses[:3]:
+                    code_parts.append(f"-- Function to interact with address {addr}")
+                    code_parts.append(f"function CheatEngine.process_{addr}()")
+                    code_parts.append(f"  local addr = 0x{addr}")
+                    code_parts.append(f"  -- Your processing logic here")
+                    code_parts.append(f"end")
+                    code_parts.append("")
+            
+            else:
+                # Default to a generic template
+                code_parts.append("// This is a template for generated code")
+                code_parts.append("// Replace with actual implementation based on your needs")
+                code_parts.append("")
+                
+                if memory_addresses:
+                    code_parts.append("// Identified memory addresses:")
+                    for addr in memory_addresses[:5]:  # Show first 5 addresses
+                        code_parts.append(f"// Address: {addr}")
+                
+                code_parts.append("")
+                code_parts.append("// TODO: Implement based on analysis results")
+            
+            return "\n".join(code_parts)
+        except Exception as e:
+            self.logger.error(f"Error generating code: {e}")
+            return f"// Error generating code: {str(e)}"
+    
+    def _generate_summary(self, context: ExecutionContext) -> str:
+        """Generate a summary of the execution."""
+        success_count = len([step for step in context.history if step.success])
+        total_steps = len(context.history)
+        
+        if context.state == TaskState.COMPLETED:
+            status = "completed successfully"
+        elif context.state == TaskState.FAILED:
+            status = "failed"
+        else:
+            status = f"in progress ({success_count}/{total_steps} steps completed)"
+        
+        return f"The requested analysis has {status}. Performed {total_steps} operations with {success_count} successful executions."
+    
+    def _extract_details(self, context: ExecutionContext) -> Dict[str, Any]:
+        """Extract detailed information from the execution context."""
+        details = {
+            "total_steps": len(context.history),
+            "successful_steps": len([step for step in context.history if step.success]),
+            "failed_steps": len([step for step in context.history if not step.success]),
+            "execution_plan": {
+                "task_type": context.execution_plan.task_type,
+                "description": context.execution_plan.description,
+                "estimated_steps": context.execution_plan.estimated_steps
+            },
+            "final_state": context.state.value,
+            "subtasks_completed": len([subtask for subtask in context.execution_plan.subtasks 
+                                      if self._is_subtask_effectively_completed(subtask, context)])
+        }
+        
+        # Add any important values from intermediate results
+        for key, value in context.intermediate_results.items():
+            if isinstance(value, (int, float, str)) and len(str(value)) < 200:
+                details[f"intermediate_{key}"] = value
+        
+        return details
+    
+    def _extract_insights(self, context: ExecutionContext) -> List[str]:
+        """Extract key insights from the execution context."""
+        insights = []
+        
+        # Add insights based on the type of task
+        task_type = context.execution_plan.task_type
+        
+        if task_type == "DATA_STRUCTURE_ANALYSIS":
+            insights.append("Performed data structure analysis of the target process")
+        elif task_type == "FUNCTION_ANALYSIS":
+            insights.append("Analyzed functions and code structure in the target process")
+        elif task_type == "PATTERN_SEARCH":
+            insights.append("Conducted pattern searches in memory regions")
+        elif task_type == "BREAKPOINT_DEBUGGING":
+            insights.append("Set up debugging with breakpoints for dynamic analysis")
+        elif task_type == "COMPREHENSIVE_ANALYSIS":
+            insights.append("Performed comprehensive memory and code analysis")
+        
+        # Add insights based on execution results
+        success_rate = 0
+        if len(context.history) > 0:
+            success_count = len([step for step in context.history if step.success])
+            success_rate = success_count / len(context.history)
+            insights.append(f"Achieved a tool execution success rate of {success_rate:.1%}")
+        
+        if success_rate < 0.5:
+            insights.append("Consider refining the approach for better success rates")
+        
+        # Look for specific findings in the results
+        for step in context.history:
+            if step.success and isinstance(step.result, dict):
+                # Look for common keys that indicate findings
+                for key, value in step.result.items():
+                    if 'address' in key.lower() and isinstance(value, int):
+                        insights.append(f"Located memory address: 0x{value:X}")
+                    elif 'signature' in key.lower() and isinstance(value, str):
+                        insights.append(f"Generated signature: {value[:50]}{'...' if len(value) > 50 else ''}")
+                    elif 'region' in key.lower() and isinstance(value, list) and len(value) > 0:
+                        insights.append(f"Identified {len(value)} memory regions")
+        
+        return insights if insights else ["Analysis completed", "Results generated successfully"]
+    
+    def _generate_recommendations(self, context: ExecutionContext) -> List[str]:
+        """Generate recommendations based on the execution context."""
+        recommendations = []
+        
+        # Add recommendations based on the task type and results
+        if context.state == TaskState.FAILED:
+            recommendations.append("The task failed to complete. Review the error and try again with different parameters.")
+        elif len([step for step in context.history if not step.success]) > 0:
+            recommendations.append("Some steps failed during execution. Consider retrying with adjusted parameters.")
+        
+        # Add specific recommendations based on task type
+        task_type = context.execution_plan.task_type
+        if task_type == "DATA_STRUCTURE_ANALYSIS":
+            recommendations.append("Consider validating the identified data structures with additional tests")
+            recommendations.append("Document the structure offsets and types for future reference")
+        elif task_type == "FUNCTION_ANALYSIS":
+            recommendations.append("Review the disassembled code for further manual analysis")
+            recommendations.append("Consider setting up additional breakpoints to understand function behavior")
+        elif task_type == "PATTERN_SEARCH":
+            recommendations.append("Validate the search results and refine patterns if needed")
+            recommendations.append("Save the generated signatures for future use")
+        elif task_type == "BREAKPOINT_DEBUGGING":
+            recommendations.append("Monitor breakpoint hits during actual program execution")
+            recommendations.append("Analyze collected data for debugging insights")
+        elif task_type == "COMPREHENSIVE_ANALYSIS":
+            recommendations.append("Synthesize all findings into a comprehensive understanding")
+            recommendations.append("Plan next steps based on the analysis results")
+        
+        if not recommendations:
+            recommendations.append("Task completed successfully")
+        
+        return recommendations
+    
+    def _is_subtask_effectively_completed(self, subtask, context: ExecutionContext) -> bool:
+        """Check if a subtask was effectively completed based on execution history."""
+        # Count how many of the required tools were successfully used
+        successful_tool_calls = [step for step in context.history if step.success and step.tool_name in subtask.tools]
+        return len(successful_tool_calls) >= max(1, len(subtask.tools) // 2)
