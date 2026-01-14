@@ -98,7 +98,7 @@ class Agent:
         start_time = time.time()
         
         try:
-            self._log_callback('step', '开始执行请求', message=request)
+            self._log_callback('step', f'开始执行请求: {request}')
             self.logger.info(f"开始执行请求: {request}")
             
             # 更新代理状态

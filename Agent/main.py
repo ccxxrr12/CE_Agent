@@ -20,13 +20,14 @@ from .utils.logger import setup_logging
 from .ui.cli import CLI
 
 
-def create_agent(config: Config, use_llm: bool = True) -> Agent:
+def create_agent(config: Config, use_llm: bool = True, cli_callback=None) -> Agent:
     """
     创建并初始化Agent实例。
     
     Args:
         config: 配置对象
         use_llm: 是否使用 LLM
+        cli_callback: 可选的CLI回调函数，用于实时日志输出
         
     Returns:
         初始化后的Agent实例
@@ -48,7 +49,7 @@ def create_agent(config: Config, use_llm: bool = True) -> Agent:
     logger.info(f"Registered {len(tool_registry.list_all_tools())} tools")
     
     # 初始化代理
-    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt, use_json_prompt=config.use_json_prompt)
+    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt, use_json_prompt=config.use_json_prompt, cli_callback=cli_callback)
     
     return agent, mcp_client
 
@@ -83,9 +84,53 @@ def main():
     if args.json_prompt:
         config.use_json_prompt = True
     
+    # 创建CLI
+    cli = CLI()
+    
+    # 创建CLI回调函数用于实时日志输出
+    def cli_callback(log_type: str, message: str, **kwargs):
+        """
+        CLI回调函数，用于实时日志输出。
+        
+        Args:
+            log_type: 日志类型 (step, tool_call, llm_call, analysis, planning, reasoning, decision, error, success, warning)
+            message: 日志消息
+            **kwargs: 额外的日志参数
+        """
+        try:
+            if log_type == 'step':
+                cli.display_step_log('info', message)
+            elif log_type == 'tool_call':
+                tool_name = kwargs.get('tool_name', 'unknown')
+                status = kwargs.get('status', 'starting')
+                cli.display_tool_call(tool_name, {}, status)
+            elif log_type == 'llm_call':
+                purpose = kwargs.get('purpose', 'unknown')
+                status = kwargs.get('status', 'starting')
+                duration = kwargs.get('duration')
+                cli.display_llm_call(purpose, status, duration)
+            elif log_type == 'analysis':
+                cli.display_step_log('info', message)
+            elif log_type == 'planning':
+                cli.display_step_log('planning', message)
+            elif log_type == 'reasoning':
+                cli.display_step_log('reasoning', message)
+            elif log_type == 'decision':
+                cli.display_step_log('decision', message)
+            elif log_type == 'error':
+                cli.display_step_log('error', message)
+            elif log_type == 'success':
+                cli.display_step_log('success', message)
+            elif log_type == 'warning':
+                cli.display_step_log('warning', message)
+            else:
+                cli.display_step_log('info', message)
+        except Exception as e:
+            logger.error(f"CLI callback error: {e}")
+    
     # 创建Agent
     use_llm = not args.no_llm
-    agent, mcp_client = create_agent(config, use_llm=use_llm)
+    agent, mcp_client = create_agent(config, use_llm=use_llm, cli_callback=cli_callback)
     
     # 启动代理
     try:
@@ -106,9 +151,6 @@ def main():
                 logger.warning(f"MCP server ping returned error: {ping_result.get('error')}")
         except Exception as e:
             logger.warning(f"MCP server ping failed: {e}")
-        
-        # 创建CLI
-        cli = CLI()
         
         # 处理不同的运行模式
         if args.request:
