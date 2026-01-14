@@ -30,6 +30,7 @@ class OllamaClient:
         self.base_url = f"http://{host}:{port}"
         self.logger = logging.getLogger(__name__)
         self.config = Config()
+        self.logger.info(f"OllamaClient initialized with model: {self.model_name}")
     
     def _make_request(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -82,9 +83,11 @@ class OllamaClient:
             "model": self.model_name,
             "prompt": prompt,
             "stream": False,
+            "num_gpu": -1,
             **kwargs
         }
         
+        self.logger.debug(f"Generating with model: {self.model_name}")
         return self._make_request("/api/generate", data)
     
     def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
@@ -102,6 +105,7 @@ class OllamaClient:
             "model": self.model_name,
             "messages": messages,
             "stream": False,
+            "num_gpu": -1,
             **kwargs
         }
         

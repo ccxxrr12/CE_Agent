@@ -20,12 +20,13 @@ from .utils.logger import setup_logging
 from .ui.cli import CLI
 
 
-def create_agent(config: Config) -> Agent:
+def create_agent(config: Config, use_llm: bool = True) -> Agent:
     """
     创建并初始化Agent实例。
     
     Args:
         config: 配置对象
+        use_llm: 是否使用 LLM
         
     Returns:
         初始化后的Agent实例
@@ -47,7 +48,7 @@ def create_agent(config: Config) -> Agent:
     logger.info(f"Registered {len(tool_registry.list_all_tools())} tools")
     
     # 初始化代理
-    agent = Agent(config, tool_registry, mcp_client, ollama_client)
+    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt)
     
     return agent, mcp_client
 
@@ -72,7 +73,8 @@ def main():
     args = parser.parse_args()
     
     # 创建Agent
-    agent, mcp_client = create_agent(config)
+    use_llm = not args.no_llm
+    agent, mcp_client = create_agent(config, use_llm=use_llm)
     
     # 启动代理
     try:

@@ -12,29 +12,41 @@ from ..utils.logger import get_logger
 class PromptManager:
     """管理AI代理的提示词。"""
     
-    def __init__(self, prompts_dir: Optional[str] = None):
+    def __init__(self, prompts_dir: Optional[str] = None, use_simple_prompt: bool = False, use_minimal_prompt: bool = False):
         """
         初始化提示词管理器。
         
         Args:
             prompts_dir: 存储提示词文件的目录路径
+            use_simple_prompt: 是否使用简化版提示词
+            use_minimal_prompt: 是否使用超简洁版提示词
         """
         self.logger = get_logger(__name__)
         self.prompts_dir = Path(prompts_dir) if prompts_dir else Path(__file__).parent.parent / "prompts"
         self.prompts: Dict[str, str] = {}
         self.prompt_templates: Dict[str, str] = {}
+        self.use_simple_prompt = use_simple_prompt
+        self.use_minimal_prompt = use_minimal_prompt
         
         self._load_system_prompt()
         self._load_prompt_templates()
     
     def _load_system_prompt(self):
         """加载系统提示词。"""
-        system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT.md"
+        if self.use_minimal_prompt:
+            system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT_MINIMAL.md"
+            prompt_type = "minimal"
+        elif self.use_simple_prompt:
+            system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT_SIMPLE.md"
+            prompt_type = "simple"
+        else:
+            system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT.md"
+            prompt_type = "full"
         
         if system_prompt_path.exists():
             with open(system_prompt_path, 'r', encoding='utf-8') as f:
                 self.prompts['system'] = f.read()
-            self.logger.info(f"Loaded system prompt from {system_prompt_path}")
+            self.logger.info(f"Loaded {prompt_type} system prompt from {system_prompt_path}")
         else:
             self.prompts['system'] = self._get_default_system_prompt()
             self.logger.warning(f"System prompt file not found, using default")
