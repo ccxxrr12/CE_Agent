@@ -24,18 +24,6 @@ def register_mcp_tools(registry, mcp_client):
     
     # 模式扫描工具
     _register_pattern_scan_tools(registry, mcp_client)
-    
-    # 反汇编工具
-    _register_disassemble_tools(registry, mcp_client)
-    
-    # 断点调试工具
-    _register_breakpoint_debug_tools(registry, mcp_client)
-    
-    # DBVM 工具
-    _register_dbvm_tools(registry, mcp_client)
-    
-    # 进程模块工具
-    _register_process_module_tools(registry, mcp_client)
 
 
 def _register_basic_tools(registry, mcp_client):

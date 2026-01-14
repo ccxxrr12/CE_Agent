@@ -27,12 +27,12 @@ CE_Agent 是一个创新工具，通过模型上下文协议（MCP）将 AI 代�
 ## 项目结构
 
 ```
-cheatengine-mcp-bridge/
+CE_Agent/
 ├── MCP_Server/                    # MCP 服务器实现
 │   ├── mcp_cheatengine.py         # FastMCP 服务器主文件
 │   ├── ce_mcp_bridge.lua          # Cheat Engine Lua 桥接脚本
 │   └── test_mcp.py                # 测试套件
-├── CE_Agent/                      # AI 代理系统
+├── Agent/                        # AI 代理系统
 │   ├── core/                      # 核心组件
 │   │   ├── agent.py               # Agent 主类
 │   │   ├── task_planner.py        # 任务规划器
@@ -100,10 +100,11 @@ pip install -r requirements.txt
 #### 2. 启动 MCP 服务器
 
 ```bash
+cd CE_Agent
 python MCP_Server/mcp_cheatengine.py
 ```
 
-查找输出：`[MCP Bridge] Server started on 0.0.0.0:8080`
+查找输出：`[MCP CE] 正在启动FastMCP服务器(v11/v99兼容)...`
 
 #### 3. 启动 Ollama 服务（可选）
 
@@ -113,13 +114,14 @@ python MCP_Server/mcp_cheatengine.py
 ollama serve
 
 # 拉取模型（可选）
-ollama pull mistral:7b-instruct-v0.2-q4_K_M
+ollama pull deepseek-r1:8b
 ```
 
 #### 4. 运行 CE_Agent
 
 ```bash
-python -m CE_Agent.main
+cd CE_Agent
+python -m Agent.main
 ```
 
 ## 使用指南
@@ -132,7 +134,7 @@ python -m CE_Agent.main
 ═════════════════════════════════════════════════════════════════════
     CHEAT ENGINE AI AGENT
 ═════════════════════════════════════════════════════════════════════
-Welcome to the Cheat Engine AI Agent!
+Welcome to Cheat Engine AI Agent!
 This tool enables natural language interaction with Cheat Engine for memory analysis and reverse engineering.
 Type 'help' for available commands or 'quit' to exit.
 ------------------------------------------------------------
@@ -228,7 +230,7 @@ Setting up analysis...
 
 ### CE_Agent 配置
 
-编辑 `CE_Agent/config.py` 或创建 `.env` 文件：
+编辑 `Agent/config.py`：
 
 ```python
 # MCP 服务器配置
@@ -238,7 +240,7 @@ mcp_port = 8080
 # Ollama 配置
 ollama_host = "localhost"
 ollama_port = 11434
-model_name = "mistral:7b-instruct-v0.2-q4_K_M"
+model_name = "deepseek-r1:8b"
 
 # 日志配置
 log_level = "INFO"
@@ -403,11 +405,10 @@ mcp_retry_delay = 1.0
 | Windows API | win32file, win32pipe | 管道通信和文件操作 |
 | 内存操作 | Cheat Engine API | 执行实际的内存操作 |
 | 虚拟机监视 | DBVM (Ring -1) | 隐形内存监视 |
-| AI 框架 | LangChain | AI 代理能力 |
 | LLM 支持 | Ollama HTTP API | 本地 LLM 模型集成 |
 | 数据验证 | pydantic | 数据模型验证 |
-| 配置管理 | pydantic-settings | 集中配置管理 |
 | CLI 支持 | colorama | 彩色输出 |
+| 异步处理 | asyncio | 异步任务执行 |
 
 ## 技术实现亮点
 
@@ -447,13 +448,13 @@ mcp_retry_delay = 1.0
 - **彩色输出**：使用 colorama 提供清晰的视觉反馈
 - **实时进度**：显示任务执行进度和状态
 - **错误处理**：友好的错误消息和恢复建议
-- **批处理支持**：支持批量处理多个请求
 
 ## 测试
 
 运行测试套件：
 
 ```bash
+cd CE_Agent
 python MCP_Server/test_mcp.py
 ```
 

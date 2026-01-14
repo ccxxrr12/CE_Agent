@@ -129,12 +129,10 @@ def format_result(result):
 # 配置
 # ============================================================================
 
-from ..config import settings
-
 # V11桥接使用'CE_MCP_Bridge_v99'
-PIPE_NAME = settings.PIPE_NAME
-MCP_SERVER_NAME = settings.MCP_SERVER_NAME
-MAX_RETRIES = settings.MAX_RETRIES
+PIPE_NAME = r"\\.\pipe\CE_MCP_Bridge_v99"
+MCP_SERVER_NAME = "cheatengine"
+MAX_RETRIES = 3
 
 # ============================================================================
 # 管道客户端

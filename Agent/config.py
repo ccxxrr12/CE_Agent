@@ -19,7 +19,7 @@ class Config:
     # Ollama 配置
     ollama_host: str = "localhost"
     ollama_port: int = 11434
-    model_name: str = "llama3.1:8b"
+    model_name: str = "deepseek-r1:8b"
     
     # 日志配置
     log_level: str = "INFO"
