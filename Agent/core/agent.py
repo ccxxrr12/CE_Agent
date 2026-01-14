@@ -11,6 +11,7 @@ from ..config import Config
 from ..utils.logger import get_logger
 from typing import Optional
 import time
+import datetime
 import threading
 import queue
 
@@ -232,7 +233,7 @@ class Agent:
                         tool_name=tool_name,
                         tool_args=tool_args,
                         result=result.result,
-                        timestamp=time.datetime.now(),
+                        timestamp=datetime.datetime.now(),
                         success=result.success,
                         error=result.error
                     )

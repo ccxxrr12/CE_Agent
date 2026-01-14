@@ -488,7 +488,8 @@ def ping() -> str:
 if __name__ == "__main__":
     try:
         debug_log("正在启动FastMCP服务器(v11/v99兼容)...")
-        mcp.run()
+        debug_log("使用 stdio 传输模式")
+        mcp.run(transport="stdio")
     except Exception as e:
         debug_log(f"致命错误: {e}")
         traceback.print_exc(file=sys.stderr)

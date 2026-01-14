@@ -1,12 +1,13 @@
 """
 Cheat Engine AI Agent 的 MCP (Model Context Protocol) 客户端。
 
-该模块提供了一个客户端，用于通过命名管道上的 JSON-RPC 与 Cheat Engine MCP 服务器通信。
+该模块提供了一个客户端，用于通过子进程的 stdio 与 Cheat Engine MCP 服务器通信。
 """
 import json
 import logging
-import socket
-import time
+import subprocess
+import sys
+import os
 from typing import Dict, Any, Optional
 from ..config import Config
 
@@ -19,30 +20,60 @@ class MCPClient:
         初始化 MCP 客户端。
         
         Args:
-            host: MCP 服务器的主机地址
-            port: MCP 服务器的端口
+            host: MCP 服务器的主机地址（保留用于兼容性）
+            port: MCP 服务器的端口（保留用于兼容性）
         """
         self.host = host
         self.port = port
-        self.socket: Optional[socket.socket] = None
+        self.process: Optional[subprocess.Popen] = None
         self.connected = False
         self.logger = logging.getLogger(__name__)
         self.config = Config()
+        self.request_id = 0
     
     def connect(self) -> bool:
         """
-        连接到 MCP 服务器。
+        连接到 MCP 服务器（通过启动子进程）。
         
         Returns:
             如果连接成功返回 True，否则返回 False
         """
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(self.config.mcp_connection_timeout)
-            self.socket.connect((self.host, self.port))
+            # 获取 MCP 服务器脚本的路径
+            server_script = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                "MCP_Server",
+                "mcp_cheatengine.py"
+            )
+            
+            if not os.path.exists(server_script):
+                self.logger.error(f"MCP 服务器脚本不存在: {server_script}")
+                return False
+            
+            # 启动 MCP 服务器作为子进程
+            self.process = subprocess.Popen(
+                [sys.executable, server_script],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=0
+            )
+            
+            # 等待进程启动
+            import time
+            time.sleep(1)
+            
+            if self.process.poll() is not None:
+                # 进程已经退出
+                stderr_output = self.process.stderr.read()
+                self.logger.error(f"MCP 服务器启动失败: {stderr_output}")
+                return False
+            
             self.connected = True
-            self.logger.info(f"已连接到 MCP 服务器 {self.host}:{self.port}")
+            self.logger.info(f"已启动 MCP 服务器子进程 (PID: {self.process.pid})")
             return True
+            
         except Exception as e:
             self.logger.error(f"连接到 MCP 服务器失败: {e}")
             self.connected = False
@@ -50,13 +81,18 @@ class MCPClient:
     
     def disconnect(self):
         """从 MCP 服务器断开连接。"""
-        if self.socket:
+        if self.process:
             try:
-                self.socket.close()
-                self.logger.info("已从 MCP 服务器断开连接")
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait()
+                self.logger.info("已停止 MCP 服务器子进程")
             except Exception as e:
-                self.logger.error(f"从 MCP 服务器断开连接时出错: {e}")
-        self.socket = None
+                self.logger.error(f"停止 MCP 服务器子进程时出错: {e}")
+        self.process = None
         self.connected = False
     
     def is_connected(self) -> bool:
@@ -66,7 +102,7 @@ class MCPClient:
         Returns:
             如果已连接返回 True，否则返回 False
         """
-        return self.connected
+        return self.connected and self.process is not None and self.process.poll() is None
     
     def send_command(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -79,30 +115,40 @@ class MCPClient:
         Returns:
             MCP 服务器的响应
         """
-        if not self.connected or not self.socket:
+        if not self.is_connected():
             self.logger.error("未连接到 MCP 服务器")
             return {"error": "未连接到 MCP 服务器"}
+        
+        self.request_id += 1
         
         # 创建 JSON-RPC 请求
         request = {
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
-            "id": int(time.time() * 1000)  # 使用时间戳作为 ID
+            "id": self.request_id
         }
         
         try:
             # 发送请求
             request_json = json.dumps(request)
-            self.socket.sendall(request_json.encode() + b'\n')
+            self.process.stdin.write(request_json + "\n")
+            self.process.stdin.flush()
             
             # 接收响应
-            response_data = self.socket.recv(4096).decode().strip()
-            response = json.loads(response_data)
+            response_line = self.process.stdout.readline()
+            if not response_line:
+                self.logger.error("从 MCP 服务器读取响应失败")
+                return {"error": "从 MCP 服务器读取响应失败"}
             
-            self.logger.debug(f"MCP 请求: {request} -> 响应: {response}")
+            response = json.loads(response_line.strip())
+            
+            self.logger.debug(f"MCP 请求: {method} -> 响应: {response}")
             return response
         
+        except json.JSONDecodeError as e:
+            self.logger.error(f"解析 MCP 响应失败: {e}")
+            return {"error": f"解析 MCP 响应失败: {str(e)}"}
         except Exception as e:
             self.logger.error(f"向 MCP 服务器发送命令时出错: {e}")
             return {"error": f"向 MCP 服务器发送命令时出错: {str(e)}"}

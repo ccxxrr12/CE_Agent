@@ -13,8 +13,14 @@ class Config:
     """Cheat Engine AI Agent 的配置类。"""
     
     # MCP 服务器配置
+    # 注意：MCP 服务器现在通过子进程 stdio 通信，以下参数保留用于向后兼容
     mcp_host: str = "localhost"
     mcp_port: int = 8080
+    
+    # MCP 子进程配置
+    mcp_server_script: str = "MCP_Server/mcp_cheatengine.py"
+    mcp_process_startup_timeout: int = 5
+    mcp_process_shutdown_timeout: int = 5
     
     # Ollama 配置
     ollama_host: str = "localhost"
@@ -27,10 +33,10 @@ class Config:
     
     # Agent 配置
     max_retries: int = 3
-    timeout: int = 30
+    timeout: int = 90
     max_context_length: int = 4096
     
-    # MCP 连接配置
+    # MCP 连接配置（保留用于向后兼容）
     mcp_connection_timeout: int = 10
     mcp_retry_delay: float = 1.0
     
@@ -44,6 +50,10 @@ class Config:
             raise ValueError("mcp_connection_timeout 必须大于 0")
         if self.mcp_retry_delay <= 0:
             raise ValueError("mcp_retry_delay 必须大于 0")
+        if self.mcp_process_startup_timeout <= 0:
+            raise ValueError("mcp_process_startup_timeout 必须大于 0")
+        if self.mcp_process_shutdown_timeout <= 0:
+            raise ValueError("mcp_process_shutdown_timeout 必须大于 0")
         
         # 确保日志目录存在
         log_dir = os.path.dirname(self.log_file)

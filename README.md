@@ -97,16 +97,7 @@ pip install -r requirements.txt
 3. 附加到目标进程
 4. 文件 → 执行脚本 → 打开 `MCP_Server/ce_mcp_bridge.lua` → 执行
 
-#### 2. 启动 MCP 服务器
-
-```bash
-cd CE_Agent
-python MCP_Server/mcp_cheatengine.py
-```
-
-查找输出：`[MCP CE] 正在启动FastMCP服务器(v11/v99兼容)...`
-
-#### 3. 启动 Ollama 服务（可选）
+#### 2. 启动 Ollama 服务（推荐）
 
 ```bash
 # 下载并安装 Ollama: https://ollama.com/download
@@ -117,12 +108,14 @@ ollama serve
 ollama pull deepseek-r1:8b
 ```
 
-#### 4. 运行 CE_Agent
+#### 3. 运行 CE_Agent
 
 ```bash
 cd CE_Agent
 python -m Agent.main
 ```
+
+**注意**：CE_Agent 会自动启动 MCP 服务器子进程，无需手动启动 MCP 服务器。
 
 ## 使用指南
 
@@ -318,9 +311,9 @@ mcp_retry_delay = 1.0
 │                      MCP 通信层                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  MCP 客户端 (MCPClient)                                  │   │
-│  │  - HTTP 通信                                              │   │
-│  │  - 命令发送                                              │   │
-│  │  - 响应解析                                              │   │
+│  │  - 子进程管理                                            │   │
+│  │  - stdio 通信                                            │   │
+│  │  - JSON-RPC 协议                                         │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └────────────────────────┬────────────────────────────────────────┘
                          │
@@ -328,8 +321,9 @@ mcp_retry_delay = 1.0
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Cheat Engine MCP 服务器                        │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  FastMCP 服务器                                           │   │
+│  │  FastMCP 服务器（子进程）                                  │   │
 │  │  - 39 个 MCP 工具                                         │   │
+│  │  - stdio 传输模式                                         │   │
 │  │  - JSON-RPC 协议                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └────────────────────────┬────────────────────────────────────────┘
@@ -402,6 +396,8 @@ mcp_retry_delay = 1.0
 | 脚本语言 | Lua | Cheat Engine 桥接脚本 |
 | 通信协议 | MCP (JSON-RPC) | AI 代理到 MCP 服务器通信 |
 | 进程间通信 | 命名管道 | MCP 服务器到 Cheat Engine 通信 |
+| 子进程通信 | stdio (stdin/stdout) | AI 代理到 MCP 服务器通信（子进程模式）|
+| 进程管理 | subprocess | MCP 服务器子进程生命周期管理 |
 | Windows API | win32file, win32pipe | 管道通信和文件操作 |
 | 内存操作 | Cheat Engine API | 执行实际的内存操作 |
 | 虚拟机监视 | DBVM (Ring -1) | 隐形内存监视 |

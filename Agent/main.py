@@ -33,6 +33,7 @@ def create_agent(config: Config) -> Agent:
     logger = logging.getLogger(__name__)
     
     # 初始化客户端
+    # 注意：MCP 客户端现在通过子进程 stdio 通信，host 和 port 参数保留用于向后兼容
     mcp_client = MCPClient(config.mcp_host, config.mcp_port)
     ollama_client = OllamaClient(config.ollama_host, config.ollama_port, config.model_name)
     
@@ -75,7 +76,7 @@ def main():
     
     # 启动代理
     try:
-        # 连接到MCP服务器
+        # 连接到MCP服务器（通过子进程）
         logger.info("Connecting to Cheat Engine MCP server...")
         if mcp_client.connect():
             logger.info("Successfully connected to MCP server")
@@ -88,6 +89,8 @@ def main():
             ping_result = mcp_client.send_command("ping", {})
             if 'error' not in ping_result:
                 logger.info("MCP server ping successful")
+            else:
+                logger.warning(f"MCP server ping returned error: {ping_result.get('error')}")
         except Exception as e:
             logger.warning(f"MCP server ping failed: {e}")
         
