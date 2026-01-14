@@ -9,7 +9,7 @@ from ..mcp.client import MCPClient
 from ..llm.client import OllamaClient
 from ..config import Config
 from ..utils.logger import get_logger
-from typing import Optional
+from typing import Optional, Callable
 import time
 import datetime
 import threading
@@ -27,7 +27,7 @@ class AgentStatus:
 class Agent:
     """协调所有组件的主 AI 代理。"""
     
-    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, ollama_client: OllamaClient, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
+    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, ollama_client: OllamaClient, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, cli_callback: Optional[Callable] = None):
         """
         初始化 AI 代理。
         
@@ -40,16 +40,18 @@ class Agent:
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
+            cli_callback: 可选的CLI回调函数，用于实时日志输出
         """
         self.config = config
         self.tool_registry = tool_registry
         self.mcp_client = mcp_client
         self.ollama_client = ollama_client
         self.logger = get_logger(__name__)
+        self.cli_callback = cli_callback
         
         # 初始化核心组件
-        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
-        self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
+        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt, cli_callback=self._log_callback)
+        self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt, cli_callback=self._log_callback)
         self.context_manager = ContextManager()
         self.result_synthesizer = ResultSynthesizer()
         
@@ -68,6 +70,21 @@ class Agent:
         self.context_manager.logger = self.logger
         self.result_synthesizer.logger = self.logger
     
+    def _log_callback(self, log_type: str, message: str, **kwargs):
+        """
+        实时日志回调函数。
+        
+        Args:
+            log_type: 日志类型 (step, tool_call, llm_call, analysis)
+            message: 日志消息
+            **kwargs: 额外的日志参数
+        """
+        if self.cli_callback:
+            try:
+                self.cli_callback(log_type, message, **kwargs)
+            except Exception as e:
+                self.logger.error(f"CLI callback error: {e}")
+    
     def execute(self, request: str) -> AnalysisReport:
         """
         从头到尾执行单个请求。
@@ -81,34 +98,41 @@ class Agent:
         start_time = time.time()
         
         try:
+            self._log_callback('step', '开始执行请求', message=request)
             self.logger.info(f"开始执行请求: {request}")
             
             # 更新代理状态
             self.status = AgentStatus.RUNNING
             
             # 规划任务
+            self._log_callback('step', '正在规划任务...')
             self.logger.debug("正在规划任务...")
             execution_plan = self.task_planner.plan(request)
             
             # 创建执行上下文
+            self._log_callback('step', '正在创建执行上下文...')
             self.logger.debug("正在创建执行上下文...")
             context = self.context_manager.create_context(request, execution_plan)
             
             # 执行计划
+            self._log_callback('step', '正在执行计划...')
             self.logger.debug("正在执行计划...")
             self._execute_plan(context)
             
             # 生成最终报告
+            self._log_callback('step', '正在生成最终报告...')
             self.logger.debug("正在生成最终报告...")
             report = self.result_synthesizer.synthesize(context)
             
             # 更新执行时间
             report.execution_time = time.time() - start_time
             
+            self._log_callback('success', f'任务 {context.task_id} 执行成功')
             self.logger.info(f"任务 {context.task_id} 执行成功")
             
             return report
         except Exception as e:
+            self._log_callback('error', f'执行过程中出错: {str(e)}')
             self.logger.error(f"执行过程中出错: {e}")
             self.status = AgentStatus.ERROR
             
