@@ -1,10 +1,10 @@
-# Cheat Engine MCP Bridge
+# CE_Agent
 
 将 AI 智能代理与 Cheat Engine 内存分析工具深度集成，实现自动化内存分析任务。
 
 ## 项目概述
 
-Cheat Engine MCP Bridge 是一个创新工具，通过模型上下文协议（MCP）将 AI 代理与 Cheat Engine 连接起来，实现程序内存的智能分析和操作。该项目包含两个主要组件：
+CE_Agent 是一个创新工具，通过模型上下文协议（MCP）将 AI 代理与 Cheat Engine 连接起来，实现程序内存的智能分析和操作。该项目包含两个主要组件：
 
 1. **MCP 服务器** - 基于 FastMCP 的 Python 服务器，通过命名管道与 Cheat Engine 通信
 2. **CE_Agent 智能代理** - 集成 Ollama 本地大模型的 AI 代理系统，支持智能任务规划和推理
