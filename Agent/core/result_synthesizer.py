@@ -238,7 +238,7 @@ Details:
         else:
             status = f"in progress ({success_count}/{total_steps} steps completed)"
         
-        return f"The requested analysis has {status}. Performed {total_steps} operations with {success_count} successful executions."
+        return f"请求的分析已{status}。执行了 {total_steps} 次操作，其中 {success_count} 次成功。"
     
     def _extract_details(self, context: ExecutionContext) -> Dict[str, Any]:
         """Extract detailed information from the execution context."""
@@ -271,25 +271,25 @@ Details:
         task_type = context.execution_plan.task_type
         
         if task_type == "DATA_STRUCTURE_ANALYSIS":
-            insights.append("Performed data structure analysis of the target process")
+            insights.append("对目标进程执行了数据结构分析")
         elif task_type == "FUNCTION_ANALYSIS":
-            insights.append("Analyzed functions and code structure in the target process")
+            insights.append("分析了目标进程中的函数和代码结构")
         elif task_type == "PATTERN_SEARCH":
-            insights.append("Conducted pattern searches in memory regions")
+            insights.append("在内存区域中进行了模式搜索")
         elif task_type == "BREAKPOINT_DEBUGGING":
-            insights.append("Set up debugging with breakpoints for dynamic analysis")
+            insights.append("设置断点进行动态分析调试")
         elif task_type == "COMPREHENSIVE_ANALYSIS":
-            insights.append("Performed comprehensive memory and code analysis")
+            insights.append("执行了全面的内存和代码分析")
         
         # Add insights based on execution results
         success_rate = 0
         if len(context.history) > 0:
             success_count = len([step for step in context.history if step.success])
             success_rate = success_count / len(context.history)
-            insights.append(f"Achieved a tool execution success rate of {success_rate:.1%}")
+            insights.append(f"工具执行成功率为 {success_rate:.1%}")
         
         if success_rate < 0.5:
-            insights.append("Consider refining the approach for better success rates")
+            insights.append("建议优化方法以提高成功率")
         
         # Look for specific findings in the results
         for step in context.history:
@@ -297,13 +297,13 @@ Details:
                 # Look for common keys that indicate findings
                 for key, value in step.result.items():
                     if 'address' in key.lower() and isinstance(value, int):
-                        insights.append(f"Located memory address: 0x{value:X}")
+                        insights.append(f"定位到内存地址: 0x{value:X}")
                     elif 'signature' in key.lower() and isinstance(value, str):
-                        insights.append(f"Generated signature: {value[:50]}{'...' if len(value) > 50 else ''}")
+                        insights.append(f"生成签名: {value[:50]}{'...' if len(value) > 50 else ''}")
                     elif 'region' in key.lower() and isinstance(value, list) and len(value) > 0:
-                        insights.append(f"Identified {len(value)} memory regions")
+                        insights.append(f"识别了 {len(value)} 个内存区域")
         
-        return insights if insights else ["Analysis completed", "Results generated successfully"]
+        return insights if insights else ["分析完成", "结果生成成功"]
     
     def _generate_recommendations(self, context: ExecutionContext) -> List[str]:
         """Generate recommendations based on the execution context."""
@@ -311,30 +311,30 @@ Details:
         
         # Add recommendations based on the task type and results
         if context.state == TaskState.FAILED:
-            recommendations.append("The task failed to complete. Review the error and try again with different parameters.")
+            recommendations.append("任务未能完成。请检查错误并尝试使用不同的参数重试。")
         elif len([step for step in context.history if not step.success]) > 0:
-            recommendations.append("Some steps failed during execution. Consider retrying with adjusted parameters.")
+            recommendations.append("执行过程中部分步骤失败。建议调整参数后重试。")
         
         # Add specific recommendations based on task type
         task_type = context.execution_plan.task_type
         if task_type == "DATA_STRUCTURE_ANALYSIS":
-            recommendations.append("Consider validating the identified data structures with additional tests")
-            recommendations.append("Document the structure offsets and types for future reference")
+            recommendations.append("建议使用额外测试验证识别的数据结构")
+            recommendations.append("记录结构偏移和类型以供将来参考")
         elif task_type == "FUNCTION_ANALYSIS":
-            recommendations.append("Review the disassembled code for further manual analysis")
-            recommendations.append("Consider setting up additional breakpoints to understand function behavior")
+            recommendations.append("审查反汇编代码以进行进一步的手动分析")
+            recommendations.append("考虑设置额外的断点以了解函数行为")
         elif task_type == "PATTERN_SEARCH":
-            recommendations.append("Validate the search results and refine patterns if needed")
-            recommendations.append("Save the generated signatures for future use")
+            recommendations.append("验证搜索结果，如需要则优化模式")
+            recommendations.append("保存生成的签名以供将来使用")
         elif task_type == "BREAKPOINT_DEBUGGING":
-            recommendations.append("Monitor breakpoint hits during actual program execution")
-            recommendations.append("Analyze collected data for debugging insights")
+            recommendations.append("在实际程序执行期间监控断点命中")
+            recommendations.append("分析收集的数据以获取调试洞察")
         elif task_type == "COMPREHENSIVE_ANALYSIS":
-            recommendations.append("Synthesize all findings into a comprehensive understanding")
-            recommendations.append("Plan next steps based on the analysis results")
+            recommendations.append("综合所有发现以形成全面理解")
+            recommendations.append("根据分析结果规划后续步骤")
         
         if not recommendations:
-            recommendations.append("Task completed successfully")
+            recommendations.append("任务成功完成")
         
         return recommendations
     

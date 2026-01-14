@@ -25,7 +25,7 @@ class Config:
     # Ollama 配置
     ollama_host: str = "localhost"
     ollama_port: int = 11434
-    model_name: str = "deepseek-r1:8b"
+    model_name: str = "glm-4.7:cloud"
     
     # 日志配置
     log_level: str = "INFO"

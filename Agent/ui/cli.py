@@ -28,11 +28,12 @@ class CLI:
     def show_welcome(self):
         """显示欢迎消息和程序信息。"""
         print(Fore.CYAN + Style.BRIGHT + "="*60)
-        print(Fore.CYAN + Style.BRIGHT + "    CHEAT ENGINE AI AGENT")
+        print(Fore.CYAN + Style.BRIGHT + "CHEAT ENGINE AI AGENT")
         print(Fore.CYAN + Style.BRIGHT + "="*60)
-        print(Fore.YELLOW + "Welcome to the Cheat Engine AI Agent!")
-        print(Fore.YELLOW + "This tool enables natural language interaction with Cheat Engine for memory analysis and reverse engineering.")
-        print(Fore.YELLOW + "Type 'help' for available commands or 'quit' to exit.")
+        print(Fore.YELLOW + "Welcome to the CE_Agent")
+        print(Fore.CYAN + "Copyright © SherryCHEN All Rights Reserved")
+        print(Fore.YELLOW + "此工具支持使用自然语言与 Cheat Engine 进行交互，用于内存分析和逆向工程。")
+        print(Fore.YELLOW + "输入 'help' 查看可用命令，或输入 'quit' 退出。")
         print(Fore.CYAN + "-"*60)
         
     def get_user_input(self) -> str:
@@ -83,34 +84,34 @@ class CLI:
             report: AnalysisReport containing the results
         """
         print(Fore.GREEN + "\n" + "="*60)
-        print(Fore.GREEN + Style.BRIGHT + "ANALYSIS COMPLETED")
+        print(Fore.GREEN + Style.BRIGHT + "分析完成")
         print(Fore.GREEN + "="*60)
         
-        print(f"{Fore.WHITE}Task ID: {report.task_id}")
-        print(f"{Fore.WHITE}Status: {Fore.GREEN + 'SUCCESS' if report.success else Fore.RED + 'FAILED'}")
-        print(f"{Fore.WHITE}Execution Time: {report.execution_time:.2f} seconds")
+        print(f"{Fore.WHITE}任务 ID: {report.task_id}")
+        print(f"{Fore.WHITE}状态: {Fore.GREEN + '成功' if report.success else Fore.RED + '失败'}")
+        print(f"{Fore.WHITE}执行时间: {report.execution_time:.2f} 秒")
         
         if report.summary:
-            print(f"\n{Fore.MAGENTA}Summary:")
+            print(f"\n{Fore.MAGENTA}摘要:")
             print(f"{Fore.WHITE}{report.summary}")
         
         if report.details:
-            print(f"\n{Fore.MAGENTA}Details:")
+            print(f"\n{Fore.MAGENTA}详细信息:")
             for key, value in report.details.items():
                 print(f"{Fore.WHITE}  {key}: {value}")
         
         if report.insights:
-            print(f"\n{Fore.MAGENTA}Key Insights:")
+            print(f"\n{Fore.MAGENTA}关键发现:")
             for i, insight in enumerate(report.insights, 1):
                 print(f"{Fore.WHITE}  {i}. {insight}")
         
         if report.recommendations:
-            print(f"\n{Fore.MAGENTA}Recommendations:")
+            print(f"\n{Fore.MAGENTA}建议:")
             for i, recommendation in enumerate(report.recommendations, 1):
                 print(f"{Fore.WHITE}  {i}. {recommendation}")
         
         if report.error:
-            print(f"\n{Fore.RED}Error:")
+            print(f"\n{Fore.RED}错误:")
             print(f"{Fore.RED}{report.error}")
         
         print(Fore.GREEN + "="*60)
@@ -122,17 +123,17 @@ class CLI:
         Args:
             error: Error message to display
         """
-        print(Fore.RED + Style.BRIGHT + "ERROR:")
+        print(Fore.RED + Style.BRIGHT + "错误:")
         print(Fore.RED + error)
         
     def display_help(self):
         """Display help information for available commands."""
-        print(Fore.CYAN + Style.BRIGHT + "\nAVAILABLE COMMANDS:")
-        print(Fore.WHITE + "  help          - Show this help message")
-        print(Fore.WHITE + "  quit/exit     - Exit the program")
-        print(Fore.WHITE + "  clear         - Clear the screen")
-        print(Fore.WHITE + "  status        - Show current agent status")
-        print(Fore.WHITE + "  [natural lang] - Enter natural language requests for memory analysis")
+        print(Fore.CYAN + Style.BRIGHT + "\n可用命令:")
+        print(Fore.WHITE + "  help          - 显示此帮助信息")
+        print(Fore.WHITE + "  quit/exit     - 退出程序")
+        print(Fore.WHITE + "  clear         - 清除屏幕")
+        print(Fore.WHITE + "  status        - 显示当前代理状态")
+        print(Fore.WHITE + "  [自然语言]   - 输入自然语言请求进行内存分析")
         print("")
         
     def clear_screen(self):
@@ -153,7 +154,7 @@ class CLI:
             user_input = self.get_user_input()
             
             if user_input.lower() in ['quit', 'exit', 'q']:
-                print(Fore.YELLOW + "Goodbye!")
+                print(Fore.YELLOW + "再见！")
                 break
             elif user_input.lower() == 'help':
                 self.display_help()
@@ -166,7 +167,7 @@ class CLI:
                 continue
             else:
                 # Process natural language request
-                print(Fore.YELLOW + f"Processing request: '{user_input}'")
+                print(Fore.YELLOW + f"正在处理请求: '{user_input}'")
                 print(Fore.CYAN + "-"*60)
                 
                 try:
@@ -177,7 +178,7 @@ class CLI:
                     self.display_result(report)
                     
                 except Exception as e:
-                    self.display_error(f"Error processing request: {str(e)}")
+                    self.display_error(f"处理请求时出错: {str(e)}")
                 
                 print(Fore.CYAN + "-"*60)
     
@@ -189,12 +190,12 @@ class CLI:
             agent: Agent实例
         """
         print(Fore.CYAN + "\n" + "="*60)
-        print(Fore.CYAN + Style.BRIGHT + "AGENT STATUS")
+        print(Fore.CYAN + Style.BRIGHT + "代理状态")
         print(Fore.CYAN + "="*60)
-        print(f"{Fore.WHITE}Status: {Fore.GREEN + agent.status}")
-        print(f"{Fore.WHITE}Active Task: {Fore.YELLOW + agent.active_task if agent.active_task else Fore.WHITE + 'None'}")
-        print(f"{Fore.WHITE}Queued Tasks: {Fore.YELLOW + agent.task_queue.qsize()}")
-        print(f"{Fore.WHITE}Available Tools: {Fore.YELLOW + len(agent.tool_registry.list_all_tools())}")
+        print(f"{Fore.WHITE}状态: {Fore.GREEN + agent.status}")
+        print(f"{Fore.WHITE}当前任务: {Fore.YELLOW + agent.active_task if agent.active_task else Fore.WHITE + '无'}")
+        print(f"{Fore.WHITE}队列任务数: {Fore.YELLOW + agent.task_queue.qsize()}")
+        print(f"{Fore.WHITE}可用工具数: {Fore.YELLOW + len(agent.tool_registry.list_all_tools())}")
         print(Fore.CYAN + "="*60)
                 
     def run_batch_mode(self, input_file: str, output_file: Optional[str] = None, agent: Optional[Agent] = None):
