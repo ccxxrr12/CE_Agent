@@ -34,9 +34,11 @@ class Config:
     # 提示词配置
     use_simple_prompt: bool = False
     use_minimal_prompt: bool = False
+    use_json_prompt: bool = True
     system_prompt_file: str = "prompts/SYSTEM_PROMPT.md"
     system_prompt_simple_file: str = "prompts/SYSTEM_PROMPT_SIMPLE.md"
     system_prompt_minimal_file: str = "prompts/SYSTEM_PROMPT_MINIMAL.md"
+    system_prompt_json_file: str = "prompts/SYSTEM_PROMPT.json"
     
     # Agent 配置
     max_retries: int = 3

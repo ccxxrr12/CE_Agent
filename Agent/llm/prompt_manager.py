@@ -12,7 +12,7 @@ from ..utils.logger import get_logger
 class PromptManager:
     """管理AI代理的提示词。"""
     
-    def __init__(self, prompts_dir: Optional[str] = None, use_simple_prompt: bool = False, use_minimal_prompt: bool = False):
+    def __init__(self, prompts_dir: Optional[str] = None, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化提示词管理器。
         
@@ -20,6 +20,7 @@ class PromptManager:
             prompts_dir: 存储提示词文件的目录路径
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
+            use_json_prompt: 是否使用JSON格式提示词
         """
         self.logger = get_logger(__name__)
         self.prompts_dir = Path(prompts_dir) if prompts_dir else Path(__file__).parent.parent / "prompts"
@@ -27,13 +28,17 @@ class PromptManager:
         self.prompt_templates: Dict[str, str] = {}
         self.use_simple_prompt = use_simple_prompt
         self.use_minimal_prompt = use_minimal_prompt
+        self.use_json_prompt = use_json_prompt
         
         self._load_system_prompt()
         self._load_prompt_templates()
     
     def _load_system_prompt(self):
         """加载系统提示词。"""
-        if self.use_minimal_prompt:
+        if self.use_json_prompt:
+            system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT.json"
+            prompt_type = "JSON"
+        elif self.use_minimal_prompt:
             system_prompt_path = self.prompts_dir / "SYSTEM_PROMPT_MINIMAL.md"
             prompt_type = "minimal"
         elif self.use_simple_prompt:
@@ -44,8 +49,14 @@ class PromptManager:
             prompt_type = "full"
         
         if system_prompt_path.exists():
-            with open(system_prompt_path, 'r', encoding='utf-8') as f:
-                self.prompts['system'] = f.read()
+            if self.use_json_prompt:
+                with open(system_prompt_path, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                    self.prompts['system'] = json.dumps(json_data, indent=2, ensure_ascii=False)
+                    self.prompts['system_json'] = json_data
+            else:
+                with open(system_prompt_path, 'r', encoding='utf-8') as f:
+                    self.prompts['system'] = f.read()
             self.logger.info(f"Loaded {prompt_type} system prompt from {system_prompt_path}")
         else:
             self.prompts['system'] = self._get_default_system_prompt()
@@ -407,3 +418,140 @@ Provide your response in JSON format:
             模板内容，如果不存在则返回None
         """
         return self.prompt_templates.get(name)
+    
+    def get_system_prompt_json(self) -> Optional[Dict[str, Any]]:
+        """
+        获取系统提示词的JSON格式数据（仅在使用JSON格式时可用）。
+        
+        Returns:
+            系统提示词的JSON数据，如果不可用则返回None
+        """
+        return self.prompts.get('system_json')
+    
+    def get_tools_from_json(self) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+        """
+        从JSON格式的系统提示词中获取工具信息。
+        
+        Returns:
+            工具信息字典，如果不可用则返回None
+        """
+        json_data = self.get_system_prompt_json()
+        if json_data and 'tools' in json_data:
+            return json_data['tools']
+        return None
+    
+    def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        """
+        获取特定工具的信息（从JSON格式的系统提示词中）。
+        
+        Args:
+            tool_name: 工具名称
+            
+        Returns:
+            工具信息字典，如果找不到则返回None
+        """
+        tools_dict = self.get_tools_from_json()
+        if not tools_dict:
+            return None
+        
+        for category, tools in tools_dict.items():
+            for tool in tools:
+                if tool.get('name') == tool_name:
+                    return tool
+        
+        return None
+    
+    def get_all_tools(self) -> List[Dict[str, Any]]:
+        """
+        获取所有工具的信息（从JSON格式的系统提示词中）。
+        
+        Returns:
+            所有工具的信息列表
+        """
+        tools_dict = self.get_tools_from_json()
+        if not tools_dict:
+            return []
+        
+        all_tools = []
+        for category, tools in tools_dict.items():
+            all_tools.extend(tools)
+        
+        return all_tools
+    
+    def get_workflow(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        获取工作流程信息（从JSON格式的系统提示词中）。
+        
+        Returns:
+            工作流程步骤列表，如果不可用则返回None
+        """
+        json_data = self.get_system_prompt_json()
+        if json_data and 'workflow' in json_data:
+            return json_data['workflow'].get('steps')
+        return None
+    
+    def get_best_practices(self) -> Optional[List[str]]:
+        """
+        获取最佳实践信息（从JSON格式的系统提示词中）。
+        
+        Returns:
+            最佳实践列表，如果不可用则返回None
+        """
+        json_data = self.get_system_prompt_json()
+        if json_data and 'best_practices' in json_data:
+            return json_data['best_practices']
+        return None
+    
+    def get_error_handling(self) -> Optional[Dict[str, str]]:
+        """
+        获取错误处理信息（从JSON格式的系统提示词中）。
+        
+        Returns:
+            错误处理字典，如果不可用则返回None
+        """
+        json_data = self.get_system_prompt_json()
+        if json_data and 'error_handling' in json_data:
+            return json_data['error_handling']
+        return None
+    
+    def format_tools_for_llm(self, tools: Optional[List[Dict[str, Any]]] = None) -> str:
+        """
+        格式化工具信息以便LLM理解。
+        
+        Args:
+            tools: 工具列表，如果为None则使用系统提示词中的所有工具
+            
+        Returns:
+            格式化的工具信息字符串
+        """
+        if tools is None:
+            tools = self.get_all_tools()
+        
+        if not tools:
+            return "No tools available"
+        
+        formatted = []
+        for tool in tools:
+            tool_info = f"\n### {tool.get('name', 'unknown')}\n"
+            tool_info += f"- **功能**: {tool.get('description', 'No description')}\n"
+            
+            parameters = tool.get('parameters', [])
+            if parameters:
+                tool_info += "- **参数**:\n"
+                for param in parameters:
+                    required = "必需" if param.get('required', False) else "可选"
+                    default = f", 默认: {param.get('default')}" if 'default' in param else ""
+                    tool_info += f"  - `{param.get('name', 'unknown')}` ({param.get('type', 'any')}, {required}{default}): {param.get('description', '')}\n"
+            else:
+                tool_info += "- **参数**: 无\n"
+            
+            usage_scenarios = tool.get('usage_scenarios', [])
+            if usage_scenarios:
+                tool_info += "- **使用场景**: " + ", ".join(usage_scenarios) + "\n"
+            
+            if 'note' in tool:
+                tool_info += f"- **注意**: {tool['note']}\n"
+            
+            formatted.append(tool_info)
+        
+        return "\n".join(formatted)

@@ -19,7 +19,7 @@ class TaskType:
 class TaskPlanner:
     """AI 代理的任务规划器。"""
     
-    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False):
+    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化任务规划器。
         
@@ -29,11 +29,12 @@ class TaskPlanner:
             use_llm: 是否使用LLM进行规划
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
+            use_json_prompt: 是否使用JSON格式提示词
         """
         self.tool_registry = tool_registry
         self.ollama_client = ollama_client
         self.use_llm = use_llm
-        self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt) if use_llm else None
+        self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
         self.logger = None  # 将由代理设置
         

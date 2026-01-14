@@ -48,7 +48,7 @@ def create_agent(config: Config, use_llm: bool = True) -> Agent:
     logger.info(f"Registered {len(tool_registry.list_all_tools())} tools")
     
     # 初始化代理
-    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt)
+    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt, use_json_prompt=config.use_json_prompt)
     
     return agent, mcp_client
 
@@ -69,8 +69,19 @@ def main():
     parser.add_argument("--output", "-o", type=str, help="Output file for batch mode results")
     parser.add_argument("--no-llm", action="store_true", help="Disable LLM and use rule-based planning")
     parser.add_argument("--request", "-r", type=str, help="Process a single request and exit")
+    parser.add_argument("--simple-prompt", action="store_true", help="Use simplified system prompt")
+    parser.add_argument("--minimal-prompt", action="store_true", help="Use minimal system prompt")
+    parser.add_argument("--json-prompt", action="store_true", help="Use JSON format system prompt")
     
     args = parser.parse_args()
+    
+    # 更新配置
+    if args.simple_prompt:
+        config.use_simple_prompt = True
+    if args.minimal_prompt:
+        config.use_minimal_prompt = True
+    if args.json_prompt:
+        config.use_json_prompt = True
     
     # 创建Agent
     use_llm = not args.no_llm

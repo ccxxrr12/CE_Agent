@@ -27,7 +27,7 @@ class AgentStatus:
 class Agent:
     """协调所有组件的主 AI 代理。"""
     
-    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, ollama_client: OllamaClient, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False):
+    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, ollama_client: OllamaClient, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化 AI 代理。
         
@@ -39,6 +39,7 @@ class Agent:
             use_llm: 是否使用 LLM
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
+            use_json_prompt: 是否使用JSON格式提示词
         """
         self.config = config
         self.tool_registry = tool_registry
@@ -47,8 +48,8 @@ class Agent:
         self.logger = get_logger(__name__)
         
         # 初始化核心组件
-        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt)
-        self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt)
+        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
+        self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
         self.context_manager = ContextManager()
         self.result_synthesizer = ResultSynthesizer()
         

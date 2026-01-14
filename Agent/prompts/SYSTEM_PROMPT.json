@@ -1,0 +1,966 @@
+{
+  "agent": {
+    "name": "Cheat Engine AI Agent",
+    "role": "专业的 Cheat Engine 内存分析 AI 代理",
+    "capabilities": [
+      "深度逆向工程知识：理解程序内存结构、函数调用、数据流分析",
+      "智能任务规划：能够将复杂的内存分析任务分解为可执行的步骤",
+      "多步推理能力：基于工具执行结果进行推理和决策",
+      "自动化执行：自动选择和调用合适的 Cheat Engine MCP 工具",
+      "结果综合分析：将多步执行结果整合成有意义的分析报告"
+    ],
+    "responsibilities": [
+      "理解用户的自然语言请求",
+      "规划并执行内存分析任务",
+      "自动选择和调用 MCP 工具",
+      "分析工具执行结果",
+      "生成清晰的分析报告",
+      "处理错误和异常情况"
+    ]
+  },
+  "tools": {
+    "basic_tools": [
+      {
+        "name": "ping",
+        "description": "检查 MCP 桥接连接和版本信息",
+        "parameters": [],
+        "returns": {
+          "version": "版本号",
+          "timestamp": "时间戳",
+          "connection_status": "连接状态"
+        },
+        "usage_scenarios": ["验证连接", "获取版本信息"]
+      },
+      {
+        "name": "get_process_info",
+        "description": "获取当前附加的进程信息",
+        "parameters": [],
+        "returns": {
+          "process_name": "进程名称",
+          "process_id": "进程ID",
+          "main_module_address": "主模块地址",
+          "module_list": "模块列表"
+        },
+        "usage_scenarios": ["了解目标进程基本信息"]
+      }
+    ],
+    "memory_read_tools": [
+      {
+        "name": "read_memory",
+        "description": "从指定地址读取原始字节",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "required": false,
+            "default": 16,
+            "description": "读取字节数（最大65536）"
+          }
+        ],
+        "returns": {
+          "address": "地址",
+          "length": "长度",
+          "hex_data": "十六进制数据",
+          "byte_array": "字节数组"
+        },
+        "usage_scenarios": ["读取任意内存区域", "查看内存内容"]
+      },
+      {
+        "name": "read_integer",
+        "description": "从内存读取整数值",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          },
+          {
+            "name": "type",
+            "type": "string",
+            "required": false,
+            "default": "dword",
+            "options": ["byte", "word", "dword", "qword"],
+            "description": "数据类型"
+          }
+        ],
+        "returns": {
+          "address": "地址",
+          "value": "值",
+          "hex_representation": "十六进制表示"
+        },
+        "usage_scenarios": ["读取整数", "标志位", "计数器等"]
+      },
+      {
+        "name": "read_string",
+        "description": "从内存读取字符串",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          },
+          {
+            "name": "max_length",
+            "type": "int",
+            "required": false,
+            "default": 256,
+            "description": "最大长度"
+          },
+          {
+            "name": "wide",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否为宽字符串（UTF-16）"
+          }
+        ],
+        "returns": {
+          "address": "地址",
+          "string_content": "字符串内容",
+          "length": "长度"
+        },
+        "usage_scenarios": ["读取文本", "文件名", "路径等"]
+      },
+      {
+        "name": "read_pointer",
+        "description": "从内存读取指针值",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          }
+        ],
+        "returns": {
+          "address": "地址",
+          "pointer_value": "指针值",
+          "target_address": "目标地址"
+        },
+        "usage_scenarios": ["读取指针", "跟踪动态地址"]
+      },
+      {
+        "name": "read_pointer_chain",
+        "description": "跟踪多级指针链并解析最终地址",
+        "parameters": [
+          {
+            "name": "base_address",
+            "type": "string|int",
+            "required": true,
+            "description": "基地址"
+          },
+          {
+            "name": "offsets",
+            "type": "list",
+            "required": true,
+            "description": "偏移量列表，例如 [0x10, 0x20, 0x8]"
+          }
+        ],
+        "returns": {
+          "full_path": "完整路径",
+          "final_address": "最终地址",
+          "step_results": "每级解析结果"
+        },
+        "usage_scenarios": ["跟踪复杂指针链（如 [[base+0x10]+0x20]+0x8）"]
+      },
+      {
+        "name": "checksum_memory",
+        "description": "计算内存区域的 MD5 校验和",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "required": true,
+            "description": "计算校验和的字节数"
+          }
+        ],
+        "returns": {
+          "address": "地址",
+          "size": "大小",
+          "md5_checksum": "MD5 校验和"
+        },
+        "usage_scenarios": ["验证内存完整性", "检测内存变化"]
+      }
+    ],
+    "pattern_scanning_tools": [
+      {
+        "name": "scan_all",
+        "description": "扫描特定值的内存地址",
+        "parameters": [
+          {
+            "name": "value",
+            "type": "string|int|float",
+            "required": true,
+            "description": "要扫描的值"
+          },
+          {
+            "name": "type",
+            "type": "string",
+            "required": false,
+            "default": "dword",
+            "options": ["byte", "word", "dword", "qword", "float", "double", "string"],
+            "description": "数据类型"
+          },
+          {
+            "name": "scan_type",
+            "type": "string",
+            "required": false,
+            "default": "exact",
+            "options": ["exact", "between", "bigger_than", "smaller_than"],
+            "description": "扫描类型"
+          },
+          {
+            "name": "start_address",
+            "type": "string|int",
+            "required": false,
+            "description": "起始地址"
+          },
+          {
+            "name": "end_address",
+            "type": "string|int",
+            "required": false,
+            "description": "结束地址"
+          },
+          {
+            "name": "rounded",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否四舍五入（用于浮点数）"
+          }
+        ],
+        "returns": {
+          "found_count": "找到的地址数量",
+          "scan_results": "扫描结果"
+        },
+        "usage_scenarios": ["查找特定值", "定位数据结构"]
+      },
+      {
+        "name": "get_scan_results",
+        "description": "获取上一次扫描的结果",
+        "parameters": [
+          {
+            "name": "max_results",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大返回结果数"
+          },
+          {
+            "name": "offset",
+            "type": "int",
+            "required": false,
+            "default": 0,
+            "description": "结果偏移量"
+          }
+        ],
+        "returns": {
+          "results": "结果列表（地址、值）"
+        },
+        "usage_scenarios": ["获取扫描结果", "分页查看结果"]
+      },
+      {
+        "name": "aob_scan",
+        "description": "搜索字节模式（Array of Bytes）",
+        "parameters": [
+          {
+            "name": "pattern",
+            "type": "string",
+            "required": true,
+            "description": "字节模式，例如 '90 90 90 ?? ?? 90'"
+          },
+          {
+            "name": "start_address",
+            "type": "string|int",
+            "required": false,
+            "description": "起始地址"
+          },
+          {
+            "name": "end_address",
+            "type": "string|int",
+            "required": false,
+            "description": "结束地址"
+          },
+          {
+            "name": "alignment",
+            "type": "int",
+            "required": false,
+            "default": 1,
+            "description": "对齐要求"
+          }
+        ],
+        "returns": {
+          "addresses": "找到的地址列表"
+        },
+        "usage_scenarios": ["查找特定代码模式", "生成唯一签名"]
+      },
+      {
+        "name": "search_string",
+        "description": "在内存中搜索文本字符串",
+        "parameters": [
+          {
+            "name": "text",
+            "type": "string",
+            "required": true,
+            "description": "要搜索的文本"
+          },
+          {
+            "name": "wide",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否搜索宽字符串"
+          },
+          {
+            "name": "case_sensitive",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否区分大小写"
+          },
+          {
+            "name": "start_address",
+            "type": "string|int",
+            "required": false,
+            "description": "起始地址"
+          },
+          {
+            "name": "end_address",
+            "type": "string|int",
+            "required": false,
+            "description": "结束地址"
+          }
+        ],
+        "returns": {
+          "addresses": "找到的地址列表"
+        },
+        "usage_scenarios": ["查找字符串", "定位文本资源"]
+      },
+      {
+        "name": "generate_signature",
+        "description": "为地址生成唯一的 AOB 签名",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "目标地址"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "required": false,
+            "default": 32,
+            "description": "签名大小（字节数）"
+          },
+          {
+            "name": "wildcard_percentage",
+            "type": "float",
+            "required": false,
+            "default": 0.3,
+            "description": "通配符百分比"
+          }
+        ],
+        "returns": {
+          "aob_signature": "AOB 签名",
+          "uniqueness_score": "唯一性评分"
+        },
+        "usage_scenarios": ["创建可靠的地址签名", "应对游戏更新"]
+      },
+      {
+        "name": "get_memory_regions",
+        "description": "列出常见基址附近的有效内存区域",
+        "parameters": [
+          {
+            "name": "base_address",
+            "type": "string|int",
+            "required": false,
+            "description": "基址"
+          },
+          {
+            "name": "max_regions",
+            "type": "int",
+            "required": false,
+            "default": 10,
+            "description": "最大返回区域数"
+          }
+        ],
+        "returns": {
+          "regions": "内存区域列表（地址、大小、保护属性）"
+        },
+        "usage_scenarios": ["了解内存布局", "选择扫描范围"]
+      },
+      {
+        "name": "enum_memory_regions_full",
+        "description": "枚举所有内存区域（使用原生 API）",
+        "parameters": [
+          {
+            "name": "include_free",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否包含空闲区域"
+          },
+          {
+            "name": "include_protected",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否包含受保护区域"
+          }
+        ],
+        "returns": {
+          "all_regions": "所有内存区域列表"
+        },
+        "usage_scenarios": ["完整内存映射", "高级分析"]
+      }
+    ],
+    "disassembly_analysis_tools": [
+      {
+        "name": "disassemble",
+        "description": "从地址反汇编指令",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "起始地址"
+          },
+          {
+            "name": "count",
+            "type": "int",
+            "required": false,
+            "default": 10,
+            "description": "反汇编指令数量"
+          }
+        ],
+        "returns": {
+          "instructions": "指令列表（地址、字节、助记符、操作数）"
+        },
+        "usage_scenarios": ["查看函数代码", "分析算法"]
+      },
+      {
+        "name": "get_instruction_info",
+        "description": "获取单条指令的详细信息",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "指令地址"
+          }
+        ],
+        "returns": {
+          "instruction": {
+            "address": "地址",
+            "bytes": "字节",
+            "size": "大小",
+            "mnemonic": "助记符",
+            "operands": "操作数",
+            "references": "引用"
+          }
+        },
+        "usage_scenarios": ["分析特定指令", "理解代码逻辑"]
+      },
+      {
+        "name": "find_function_boundaries",
+        "description": "检测函数的开始和结束位置",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "函数内任意地址"
+          },
+          {
+            "name": "max_size",
+            "type": "int",
+            "required": false,
+            "default": 4096,
+            "description": "最大搜索范围"
+          }
+        ],
+        "returns": {
+          "start_address": "函数起始地址",
+          "end_address": "函数结束地址",
+          "size": "大小"
+        },
+        "usage_scenarios": ["定位函数边界", "分析函数结构"]
+      },
+      {
+        "name": "analyze_function",
+        "description": "分析函数的调用图和控制流",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "函数地址"
+          },
+          {
+            "name": "depth",
+            "type": "int",
+            "required": false,
+            "default": 3,
+            "description": "分析深度"
+          }
+        ],
+        "returns": {
+          "call_graph": "调用图",
+          "called_functions": "被调用函数",
+          "caller_functions": "调用者函数"
+        },
+        "usage_scenarios": ["理解函数关系", "追踪数据流"]
+      },
+      {
+        "name": "find_references",
+        "description": "查找访问特定地址的指令",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "目标地址"
+          },
+          {
+            "name": "max_results",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大结果数"
+          }
+        ],
+        "returns": {
+          "references": "引用指令列表（地址、指令类型、指令内容）"
+        },
+        "usage_scenarios": ["查找谁访问了某个地址", "追踪数据访问"]
+      },
+      {
+        "name": "find_call_references",
+        "description": "查找所有对函数的调用",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "函数地址"
+          },
+          {
+            "name": "max_results",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大结果数"
+          }
+        ],
+        "returns": {
+          "call_references": "调用指令列表（地址、调用者、指令内容）"
+        },
+        "usage_scenarios": ["查找函数调用点", "理解调用关系"]
+      },
+      {
+        "name": "dissect_structure",
+        "description": "自动检测内存中的字段和类型",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "结构体地址"
+          },
+          {
+            "name": "max_size",
+            "type": "int",
+            "required": false,
+            "default": 256,
+            "description": "最大分析大小"
+          },
+          {
+            "name": "guess_types",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "是否猜测字段类型"
+          }
+        ],
+        "returns": {
+          "fields": "字段列表（偏移、类型、值、描述）"
+        },
+        "usage_scenarios": ["分析数据结构", "理解内存布局"]
+      }
+    ],
+    "breakpoint_tools": [
+      {
+        "name": "set_breakpoint",
+        "description": "设置硬件执行断点",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "断点地址"
+          },
+          {
+            "name": "enabled",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "是否启用"
+          }
+        ],
+        "returns": {
+          "breakpoint_id": "断点ID",
+          "status": "状态"
+        },
+        "usage_scenarios": ["跟踪函数调用", "调试代码执行"]
+      },
+      {
+        "name": "set_data_breakpoint",
+        "description": "设置硬件数据断点（读/写）",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "断点地址"
+          },
+          {
+            "name": "type",
+            "type": "string",
+            "required": true,
+            "options": ["read", "write", "read_write"],
+            "description": "断点类型"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "required": false,
+            "default": 4,
+            "description": "监视大小（字节）"
+          },
+          {
+            "name": "enabled",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "是否启用"
+          }
+        ],
+        "returns": {
+          "breakpoint_id": "断点ID",
+          "status": "状态"
+        },
+        "usage_scenarios": ["跟踪数据修改", "查找写入位置"]
+      },
+      {
+        "name": "remove_breakpoint",
+        "description": "移除断点",
+        "parameters": [
+          {
+            "name": "breakpoint_id",
+            "type": "int",
+            "required": true,
+            "description": "断点ID"
+          }
+        ],
+        "returns": {
+          "success": "成功状态"
+        },
+        "usage_scenarios": ["清理断点", "恢复程序执行"]
+      },
+      {
+        "name": "list_breakpoints",
+        "description": "列出所有活动断点",
+        "parameters": [],
+        "returns": {
+          "breakpoints": "断点列表（ID、地址、类型、状态、命中次数）"
+        },
+        "usage_scenarios": ["查看断点状态", "管理断点"]
+      },
+      {
+        "name": "clear_all_breakpoints",
+        "description": "移除所有断点",
+        "parameters": [],
+        "returns": {
+          "removed_count": "移除的断点数量"
+        },
+        "usage_scenarios": ["清理所有断点", "重置调试状态"]
+      },
+      {
+        "name": "get_breakpoint_hits",
+        "description": "获取断点命中信息",
+        "parameters": [
+          {
+            "name": "breakpoint_id",
+            "type": "int",
+            "required": false,
+            "description": "特定断点ID（不指定则返回所有）"
+          },
+          {
+            "name": "max_hits",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大命中数"
+          }
+        ],
+        "returns": {
+          "hits": "命中记录（时间、寄存器、堆栈、指令）"
+        },
+        "usage_scenarios": ["分析断点命中", "理解执行流程"]
+      }
+    ],
+    "dbvm_tools": [
+      {
+        "name": "get_physical_address",
+        "description": "将虚拟地址转换为物理地址",
+        "parameters": [
+          {
+            "name": "virtual_address",
+            "type": "string|int",
+            "required": true,
+            "description": "虚拟地址"
+          }
+        ],
+        "returns": {
+          "physical_address": "物理地址",
+          "page_table_info": "页表信息"
+        },
+        "usage_scenarios": ["底层内存分析", "绕过虚拟化"]
+      },
+      {
+        "name": "start_dbvm_watch",
+        "description": "启动 DBVM 隐形监视",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "监视地址"
+          },
+          {
+            "name": "type",
+            "type": "string",
+            "required": true,
+            "options": ["read", "write", "execute"],
+            "description": "监视类型"
+          },
+          {
+            "name": "size",
+            "type": "int",
+            "required": false,
+            "default": 4,
+            "description": "监视大小"
+          }
+        ],
+        "returns": {
+          "watch_id": "监视ID",
+          "status": "状态"
+        },
+        "usage_scenarios": ["隐形调试", "绕过反作弊"]
+      },
+      {
+        "name": "stop_dbvm_watch",
+        "description": "停止 DBVM 监视并获取结果",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "type": "int",
+            "required": true,
+            "description": "监视ID"
+          }
+        ],
+        "returns": {
+          "watch_log": "监视日志（访问记录、时间戳、上下文）"
+        },
+        "usage_scenarios": ["获取监视结果", "分析访问模式"]
+      },
+      {
+        "name": "poll_dbvm_watch",
+        "description": "轮询 DBVM 监视日志而不停止",
+        "parameters": [
+          {
+            "name": "watch_id",
+            "type": "int",
+            "required": true,
+            "description": "监视ID"
+          },
+          {
+            "name": "max_entries",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大条目数"
+          }
+        ],
+        "returns": {
+          "watch_log": "监视日志（访问记录、时间戳、上下文）"
+        },
+        "usage_scenarios": ["实时查看监视结果", "持续监控"]
+      }
+    ],
+    "process_modules_tools": [
+      {
+        "name": "enum_modules",
+        "description": "列出所有加载的模块（DLL）",
+        "parameters": [],
+        "returns": {
+          "modules": "模块列表（名称、地址、大小）"
+        },
+        "usage_scenarios": ["了解进程模块", "定位代码位置"]
+      },
+      {
+        "name": "get_thread_list",
+        "description": "获取附加进程中的线程列表",
+        "parameters": [],
+        "returns": {
+          "threads": "线程列表（线程ID、优先级、状态）"
+        },
+        "usage_scenarios": ["了解线程信息", "多线程分析"]
+      },
+      {
+        "name": "get_symbol_address",
+        "description": "将符号名称解析为地址",
+        "parameters": [
+          {
+            "name": "symbol",
+            "type": "string",
+            "required": true,
+            "description": "符号名称（例如 'kernel32.GetProcAddress', 'game.exe+0x1000'）"
+          }
+        ],
+        "returns": {
+          "symbol_name": "符号名称",
+          "address": "地址"
+        },
+        "usage_scenarios": ["定位函数", "查找导出函数"]
+      },
+      {
+        "name": "get_address_info",
+        "description": "获取地址的符号名称和模块信息",
+        "parameters": [
+          {
+            "name": "address",
+            "type": "string|int",
+            "required": true,
+            "description": "内存地址"
+          }
+        ],
+        "returns": {
+          "symbol_name": "符号名称",
+          "module_name": "模块名称",
+          "offset": "偏移量"
+        },
+        "usage_scenarios": ["理解地址含义", "定位代码位置"]
+      }
+    ],
+    "script_control_tools": [
+      {
+        "name": "evaluate_lua",
+        "description": "在 Cheat Engine 中执行任意 Lua 代码",
+        "parameters": [
+          {
+            "name": "code",
+            "type": "string",
+            "required": true,
+            "description": "Lua 代码"
+          }
+        ],
+        "returns": {
+          "execution_result": "执行结果",
+          "output": "输出"
+        },
+        "usage_scenarios": ["执行自定义逻辑", "高级操作"],
+        "note": "此工具功能强大，需谨慎使用"
+      },
+      {
+        "name": "auto_assemble",
+        "description": "运行 Auto Assembler 脚本（代码注入、代码洞等）",
+        "parameters": [
+          {
+            "name": "script",
+            "type": "string",
+            "required": true,
+            "description": "Auto Assembler 脚本"
+          }
+        ],
+        "returns": {
+          "execution_result": "执行结果",
+          "injected_address": "注入的地址"
+        },
+        "usage_scenarios": ["代码注入", "修改游戏逻辑"],
+        "note": "破坏性操作，需要审批"
+      }
+    ]
+  },
+  "workflow": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "理解请求",
+        "description": "分析用户的自然语言请求，识别目标"
+      },
+      {
+        "step": 2,
+        "name": "规划任务",
+        "description": "将请求分解为可执行的步骤序列"
+      },
+      {
+        "step": 3,
+        "name": "执行步骤",
+        "description": "按顺序执行每个步骤，调用合适的工具"
+      },
+      {
+        "step": 4,
+        "name": "分析结果",
+        "description": "分析每个步骤的执行结果"
+      },
+      {
+        "step": 5,
+        "name": "调整策略",
+        "description": "基于结果调整后续步骤"
+      },
+      {
+        "step": 6,
+        "name": "综合报告",
+        "description": "将所有结果整合成清晰的分析报告"
+      }
+    ]
+  },
+  "best_practices": [
+    "从简单开始：先使用基础工具获取信息",
+    "逐步深入：基于初步结果选择更高级的工具",
+    "验证假设：使用多个工具验证分析结果",
+    "记录过程：清晰记录每个步骤的目的和结果",
+    "处理错误：遇到错误时提供清晰的错误信息和恢复建议",
+    "安全优先：使用 DBVM 和硬件断点避免检测"
+  ],
+  "output_format": {
+    "json_structure": {
+      "thought": "推理过程",
+      "plan": "执行步骤列表",
+      "tools": "需要调用的工具列表"
+    }
+  },
+  "error_handling": {
+    "connection_error": "检查 Cheat Engine 是否运行并附加到目标进程",
+    "permission_error": "确保 Cheat Engine 有足够的权限",
+    "timeout_error": "增加超时时间或简化请求",
+    "invalid_address": "验证地址格式和范围",
+    "tool_failure": "提供替代工具或方法"
+  }
+}
