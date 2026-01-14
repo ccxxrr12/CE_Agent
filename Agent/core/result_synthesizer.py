@@ -256,6 +256,18 @@ Details:
                                       if self._is_subtask_effectively_completed(subtask, context)])
         }
         
+        # Add tool execution results
+        for i, step in enumerate(context.history, 1):
+            if step.success and step.result:
+                result_key = f"步骤{i}_结果"
+                if isinstance(step.result, dict):
+                    # 如果结果是字典，添加到详细信息
+                    for key, value in step.result.items():
+                        if len(str(value)) < 500:  # 限制长度
+                            details[f"{result_key}_{key}"] = value
+                elif isinstance(step.result, (str, int, float, bool)):
+                    details[result_key] = step.result
+        
         # Add any important values from intermediate results
         for key, value in context.intermediate_results.items():
             if isinstance(value, (int, float, str)) and len(str(value)) < 200:
@@ -293,15 +305,26 @@ Details:
         
         # Look for specific findings in the results
         for step in context.history:
-            if step.success and isinstance(step.result, dict):
-                # Look for common keys that indicate findings
-                for key, value in step.result.items():
-                    if 'address' in key.lower() and isinstance(value, int):
-                        insights.append(f"定位到内存地址: 0x{value:X}")
-                    elif 'signature' in key.lower() and isinstance(value, str):
-                        insights.append(f"生成签名: {value[:50]}{'...' if len(value) > 50 else ''}")
-                    elif 'region' in key.lower() and isinstance(value, list) and len(value) > 0:
-                        insights.append(f"识别了 {len(value)} 个内存区域")
+            if step.success and step.result:
+                if isinstance(step.result, dict):
+                    # Extract key information from the result
+                    if 'version' in step.result:
+                        insights.append(f"MCP 服务器版本: {step.result.get('version', '未知')}")
+                    if 'status' in step.result:
+                        insights.append(f"MCP 服务器状态: {step.result.get('status', '未知')}")
+                    if 'response' in step.result:
+                        response = step.result.get('response')
+                        if isinstance(response, str) and len(response) < 200:
+                            insights.append(f"服务器响应: {response}")
+                    if 'address' in step.result and isinstance(step.result['address'], int):
+                        insights.append(f"定位到内存地址: 0x{step.result['address']:X}")
+                    if 'signature' in step.result and isinstance(step.result['signature'], str):
+                        sig = step.result['signature']
+                        insights.append(f"生成签名: {sig[:50]}{'...' if len(sig) > 50 else ''}")
+                    if 'region' in step.result and isinstance(step.result['region'], list) and len(step.result['region']) > 0:
+                        insights.append(f"识别了 {len(step.result['region'])} 个内存区域")
+                elif isinstance(step.result, str) and len(step.result) < 200:
+                    insights.append(f"执行结果: {step.result}")
         
         return insights if insights else ["分析完成", "结果生成成功"]
     

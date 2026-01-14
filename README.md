@@ -406,7 +406,7 @@ mcp_retry_delay = 1.0
 | CLI 支持 | colorama | 彩色输出 |
 | 异步处理 | asyncio | 异步任务执行 |
 
-## 技术实现亮点
+## 开展工作
 
 ### 1. Windows 特定优化
 - **行结束符修复**：修补 MCP SDK，在 Windows 上使用 LF（\n）而不是 CRLF（\r\n）
@@ -432,7 +432,7 @@ mcp_retry_delay = 1.0
 - **内存访问优化**：避免可能触发反作弊的内存访问模式
 - **安全监视模式**：尽可能使用只读监视，最小化检测面
 
-### 5. 智能代理集成
+### 5. CE_AGENT代理集成
 - **双模推理引擎**：LLM 智能推理与规则引擎无缝切换
 - **智能任务规划**：自动将复杂用户请求分解为可执行的子任务序列
 - **多步决策制定**：基于工具执行结果动态调整执行策略
@@ -460,34 +460,11 @@ python MCP_Server/test_mcp.py
 - 验证通信可靠性
 - 生成详细的测试报告
 
-## 故障排除
-
-### 常见问题
-
-**Q: MCP 服务器无法启动**
-- 确保 Cheat Engine 已启动并加载了桥接脚本
-- 检查命名管道名称是否正确
-- 查看日志文件获取详细错误信息
-
-**Q: Ollama 连接失败**
-- 确保 Ollama 服务正在运行：`ollama serve`
-- 检查模型是否已下载：`ollama list`
-- 验证配置中的主机和端口设置
-
-**Q: 工具执行超时**
-- 增加 `timeout` 配置值
-- 检查网络连接和 MCP 服务器状态
-- 查看日志了解具体超时的工具
-
-**Q: Windows 换行符错误**
-- 确保使用最新版本的 MCP SDK
-- 检查是否正确应用了 Windows 补丁
-- 验证 stdin/stdout 的二进制模式设置
 
 ## 文档
 
 - [架构设计文档](ARCHITECTURE_DESIGN.md) - 详细的系统架构设计
-- [实现计划](IMPLEMENTATION_PLAN.md) - 项目实现计划和进度
+  
 - [MCP 命令参考](AI_Context/MCP_Bridge_Command_Reference.md) - 所有 MCP 工具的详细说明
 - [Cheat Engine Lua 文档](AI_Context/CE_LUA_Documentation.md) - Cheat Engine Lua API 参考
 - [AI 代理技术文档](AI_Context/AI_Guide_MCP_Server_Implementation.md) - AI 代理实现指南
@@ -498,12 +475,10 @@ python MCP_Server/test_mcp.py
 
 ## 免责声明
 
-此代码仅用于教育和研究目的。它的创建是为了展示模型上下文协议（MCP）和基于 LLM 的调试能力。我不赞成将这些工具用于恶意黑客攻击、多人游戏作弊或违反服务条款。这是软件工程自动化的演示。
+此代码仅用于教育和研究目的。它的创建是为了展示模型上下文协议（MCP）和基于 LLM 的调试能力。本人不赞成将这些工具用于恶意黑客攻击、多人游戏作弊或违反服务条款。
 
-## 贡献
 
-欢迎贡献！请随时提交问题报告或拉取请求。
 
 ## 联系方式
 
-如有问题或建议，请通过 GitHub Issues 联系。
+如有问题或建议，请通过 GitHub Issues 或邮件xueruic0@outlook.com与我联系。

@@ -317,7 +317,7 @@ class Agent:
     
     def _determine_tool_args(self, tool_name: str, context) -> dict:
         """
-        根据上下文确定工具的参数。
+        根据上下文确定工具的参数（改进版 - 基于规则的智能参数推断）。
         
         Args:
             tool_name: 要执行的工具名称
@@ -326,10 +326,8 @@ class Agent:
         Returns:
             工具的参数字典
         """
-        # 这是一个简化的实现
-        # 在实际实现中，这会更加复杂
+        import re
         
-        # 获取工具元数据以了解所需参数
         tool_info = self.tool_registry.get_tool(tool_name)
         if not tool_info:
             self.logger.warning(f"Tool not found in registry: {tool_name}")
@@ -338,25 +336,511 @@ class Agent:
         metadata = tool_info['metadata']
         args = {}
         
-        # 目前，对于大多数工具返回空参数，但处理一些常见情况
-        if tool_name == "get_process_info":
-            # 可能会从上下文中获取进程信息
-            pass
-        elif tool_name == "read_memory":
-            # 可能会在上下文中查找地址
-            # 目前，返回默认参数
-            pass
-        elif tool_name == "disassemble":
-            # 可能会在上下文中查找地址
-            pass
-        elif tool_name == "ping":
-            # 不需要参数
-            pass
-        else:
-            # 对于其他工具，在中间结果中查找相关值
-            for param in metadata.parameters:
-                # 检查我们在上下文中是否有此参数的值
-                if param.name in context.intermediate_results:
-                    args[param.name] = context.intermediate_results[param.name]
+        # 1. 从工具元数据中获取默认值
+        for param in metadata.parameters:
+            if not param.required and param.default is not None:
+                args[param.name] = param.default
+        
+        # 2. 从用户请求中提取参数
+        user_args = self._extract_args_from_request(tool_name, context.user_request)
+        args.update(user_args)
+        
+        # 3. 从中间结果中查找参数
+        for param in metadata.parameters:
+            if param.name not in args:
+                value = self._find_value_in_context(param.name, context)
+                if value is not None:
+                    args[param.name] = value
+        
+        # 4. 从执行历史中推断参数
+        for param in metadata.parameters:
+            if param.name not in args:
+                value = self._infer_value_from_history(param.name, param.type, context)
+                if value is not None:
+                    args[param.name] = value
+        
+        # 5. 特定工具的智能处理
+        args = self._apply_tool_specific_logic(tool_name, args, context)
+        
+        # 6. 参数验证
+        if not self._validate_tool_args(tool_name, args):
+            self.logger.warning(f"Invalid arguments for tool {tool_name}: {args}")
+            return {}
         
         return args
+    
+    def _extract_args_from_request(self, tool_name: str, request: str) -> dict:
+        """
+        从用户请求中提取工具参数。
+        
+        Args:
+            tool_name: 工具名称
+            request: 用户请求
+            
+        Returns:
+            提取的参数字典
+        """
+        import re
+        args = {}
+        request_lower = request.lower()
+        
+        # 常见参数模式
+        patterns = {
+            'address': r'(?:at|address|addr|0x)?\s*([0-9a-fA-F]{4,16})',
+            'value': r'(?:value|scan|search|find)\s*[:\s]*([^\s,]+)',
+            'size': r'(?:size|length)\s*[:\s]*(\d+)',
+            'count': r'(?:count|number)\s*[:\s]*(\d+)',
+            'pattern': r'(?:pattern|aob|signature)\s*[:\s]*([0-9a-fA-F\s\?]+)',
+            'symbol': r'(?:symbol|function)\s*[:\s]*([a-zA-Z0-9_.]+)',
+            'string': r'(?:string|text)\s*[:\s]*["\']([^"\']+)["\']',
+            'search_string': r'(?:search.*?string|find.*?text)\s*[:\s]*["\']([^"\']+)["\']',
+            'max_results': r'(?:max|limit)\s*[:\s]*(\d+)',
+            'timeout': r'(?:timeout|wait)\s*[:\s]*(\d+)',
+            'condition': r'(?:condition|when)\s*[:\s]*["\']([^"\']+)["\']',
+            'assembly': r'(?:assembly|code)\s*[:\s]*["\']([^"\']+)["\']',
+            'offsets': r'(?:offset|off)\s*[:\s]*\[([^\]]+)\]',
+            'virtual_address': r'(?:virtual|vaddr)\s*[:\s]*([0-9a-fA-F]{4,16})',
+            'base_address': r'(?:base|baddr)\s*[:\s]*([0-9a-fA-F]{4,16})',
+        }
+        
+        for param_name, pattern in patterns.items():
+            match = re.search(pattern, request_lower)
+            if match:
+                value = match.group(1)
+                # 类型转换
+                if param_name in ['address', 'size', 'count', 'max_results', 'timeout', 'virtual_address', 'base_address']:
+                    try:
+                        if value.startswith('0x') or len(value) > 8:
+                            args[param_name] = int(value, 16)
+                        else:
+                            args[param_name] = int(value)
+                    except ValueError:
+                        continue
+                elif param_name == 'offsets':
+                    # 解析偏移量列表
+                    try:
+                        offsets = [int(x.strip(), 16 if x.strip().startswith('0x') else 10) 
+                                  for x in value.split(',')]
+                        args[param_name] = offsets
+                    except ValueError:
+                        continue
+                else:
+                    args[param_name] = value
+        
+        return args
+    
+    def _find_value_in_context(self, param_name: str, context) -> Any:
+        """
+        在上下文中查找参数值。
+        
+        Args:
+            param_name: 参数名称
+            context: 执行上下文
+            
+        Returns:
+            找到的值，如果未找到则返回None
+        """
+        # 1. 直接在中间结果中查找
+        if param_name in context.intermediate_results:
+            return context.intermediate_results[param_name]
+        
+        # 2. 在中间结果的嵌套结构中查找
+        for key, value in context.intermediate_results.items():
+            if isinstance(value, dict):
+                if param_name in value:
+                    return value[param_name]
+            elif isinstance(value, list) and len(value) > 0:
+                if isinstance(value[0], dict) and param_name in value[0]:
+                    return value[0][param_name]
+        
+        # 3. 使用模糊匹配
+        similar_keys = [k for k in context.intermediate_results.keys() 
+                       if param_name.lower() in k.lower()]
+        if similar_keys:
+            return context.intermediate_results[similar_keys[0]]
+        
+        return None
+    
+    def _infer_value_from_history(self, param_name: str, param_type: str, context) -> Any:
+        """
+        从执行历史中推断参数值。
+        
+        Args:
+            param_name: 参数名称
+            param_type: 参数类型
+            context: 执行上下文
+            
+        Returns:
+            推断的值，如果无法推断则返回None
+        """
+        # 反向遍历历史，查找最近的匹配值
+        for step in reversed(context.history):
+            if not step.success or not step.result:
+                continue
+            
+            result = step.result
+            if isinstance(result, dict):
+                # 直接匹配
+                if param_name in result:
+                    return result[param_name]
+                
+                # 类型匹配
+                if param_type == 'integer':
+                    for key, value in result.items():
+                        if isinstance(value, int):
+                            return value
+                elif param_type == 'string':
+                    for key, value in result.items():
+                        if isinstance(value, str) and len(value) < 200:
+                            return value
+                elif param_type == 'list':
+                    for key, value in result.items():
+                        if isinstance(value, list):
+                            return value
+            
+            # 特定参数的推断逻辑
+            if param_name == 'address':
+                # 从任何包含地址的结果中提取
+                if isinstance(result, dict) and 'address' in result:
+                    return result['address']
+                elif isinstance(result, dict) and 'addresses' in result:
+                    if isinstance(result['addresses'], list) and len(result['addresses']) > 0:
+                        return result['addresses'][0]
+            
+            elif param_name == 'value':
+                # 从扫描结果中提取
+                if isinstance(result, dict) and 'value' in result:
+                    return result['value']
+            
+            elif param_name == 'symbol':
+                # 从符号相关结果中提取
+                if isinstance(result, dict) and 'symbol' in result:
+                    return result['symbol']
+        
+        return None
+    
+    def _apply_tool_specific_logic(self, tool_name: str, args: dict, context) -> dict:
+        """
+        应用特定工具的智能逻辑。
+        
+        Args:
+            tool_name: 工具名称
+            args: 当前参数字典
+            context: 执行上下文
+            
+        Returns:
+            更新后的参数字典
+        """
+        import re
+        
+        # scan_all 工具
+        if tool_name == "scan_all":
+            # 如果没有提供值，尝试从用户请求中提取
+            if 'value' not in args:
+                request_lower = context.user_request.lower()
+                # 提取数字值
+                number_match = re.search(r'\b(\d+)\b', request_lower)
+                if number_match:
+                    args['value'] = number_match.group(1)
+            
+            # 设置默认扫描类型
+            if 'scan_type' not in args:
+                args['scan_type'] = 'Auto Assembler'
+        
+        # disassemble 工具
+        elif tool_name == "disassemble":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认指令数量
+            if 'count' not in args:
+                args['count'] = 10
+        
+        # read_memory 工具
+        elif tool_name == "read_memory":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认读取大小
+            if 'size' not in args:
+                args['size'] = 16
+        
+        # aob_scan 工具
+        elif tool_name == "aob_scan":
+            # 如果没有模式，尝试从用户请求中提取
+            if 'pattern' not in args:
+                request_lower = context.user_request.lower()
+                # 提取十六进制模式
+                hex_match = re.search(r'([0-9a-fA-F\s\?]{10,})', request_lower)
+                if hex_match:
+                    args['pattern'] = hex_match.group(1).strip()
+            
+            # 设置默认选项
+            if 'writable' not in args:
+                args['writable'] = False
+            if 'executable' not in args:
+                args['executable'] = True
+        
+        # set_breakpoint 工具
+        elif tool_name == "set_breakpoint":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+        
+        # set_data_breakpoint 工具
+        elif tool_name == "set_data_breakpoint":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认大小
+            if 'size' not in args:
+                args['size'] = 4
+            # 设置默认访问类型
+            if 'access_type' not in args:
+                args['access_type'] = 'rw'
+        
+        # analyze_function 工具
+        elif tool_name == "analyze_function":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+        
+        # find_references 工具
+        elif tool_name == "find_references":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+        
+        # generate_signature 工具
+        elif tool_name == "generate_signature":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认大小
+            if 'size' not in args:
+                args['size'] = 256
+        
+        # get_scan_results 工具
+        elif tool_name == "get_scan_results":
+            # 设置默认最大结果数
+            if 'max_results' not in args:
+                args['max_results'] = 100
+        
+        # get_breakpoint_hits 工具
+        elif tool_name == "get_breakpoint_hits":
+            # 设置默认超时
+            if 'timeout' not in args:
+                args['timeout'] = 5000
+        
+        # read_string 工具
+        elif tool_name == "read_string":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认长度
+            if 'length' not in args:
+                args['length'] = 256
+        
+        # search_string 工具
+        elif tool_name == "search_string":
+            # 如果没有搜索字符串，尝试从用户请求中提取
+            if 'search_string' not in args:
+                request_lower = context.user_request.lower()
+                # 提取引号中的文本
+                quote_match = re.search(r'["\']([^"\']+)["\']', request_lower)
+                if quote_match:
+                    args['search_string'] = quote_match.group(1)
+            
+            # 设置默认区分大小写
+            if 'case_sensitive' not in args:
+                args['case_sensitive'] = True
+        
+        # evaluate_lua 工具
+        elif tool_name == "evaluate_lua":
+            # 如果没有脚本，尝试从用户请求中提取
+            if 'script' not in args:
+                # 提取代码块中的脚本
+                code_match = re.search(r'```lua\s*([\s\S]*?)\s*```', context.user_request)
+                if code_match:
+                    args['script'] = code_match.group(1).strip()
+                else:
+                    # 提取引号中的脚本
+                    quote_match = re.search(r'["\']([^"\']+)["\']', context.user_request)
+                    if quote_match:
+                        args['script'] = quote_match.group(1)
+        
+        # auto_assemble 工具
+        elif tool_name == "auto_assemble":
+            # 如果没有汇编代码，尝试从用户请求中提取
+            if 'assembly' not in args:
+                # 提取代码块中的汇编
+                code_match = re.search(r'```(?:asm|assembly)?\s*([\s\S]*?)\s*```', context.user_request)
+                if code_match:
+                    args['assembly'] = code_match.group(1).strip()
+            
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+        
+        # read_pointer_chain 工具
+        elif tool_name == "read_pointer_chain":
+            # 如果没有基地址，尝试从上下文中查找
+            if 'base_address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['base_address'] = step.result['address']
+                            break
+            
+            # 如果没有偏移量，尝试从用户请求中提取
+            if 'offsets' not in args:
+                request_lower = context.user_request.lower()
+                # 提取偏移量列表
+                offset_match = re.search(r'(?:offset|off)\s*[:\s]*\[([^\]]+)\]', request_lower)
+                if offset_match:
+                    try:
+                        offsets = [int(x.strip(), 16 if x.strip().startswith('0x') else 10) 
+                                  for x in offset_match.group(1).split(',')]
+                        args['offsets'] = offsets
+                    except ValueError:
+                        pass
+        
+        # checksum_memory 工具
+        elif tool_name == "checksum_memory":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认大小
+            if 'size' not in args:
+                args['size'] = 4096
+        
+        # start_dbvm_watch 工具
+        elif tool_name == "start_dbvm_watch":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+            
+            # 设置默认大小
+            if 'size' not in args:
+                args['size'] = 256
+            # 设置默认访问类型
+            if 'access_type' not in args:
+                args['access_type'] = 'rw'
+        
+        # stop_dbvm_watch 工具
+        elif tool_name == "stop_dbvm_watch":
+            # 如果没有地址，尝试从上下文中查找
+            if 'address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['address'] = step.result['address']
+                            break
+        
+        # get_physical_address 工具
+        elif tool_name == "get_physical_address":
+            # 如果没有虚拟地址，尝试从上下文中查找
+            if 'virtual_address' not in args:
+                for step in reversed(context.history):
+                    if step.success and step.result:
+                        if isinstance(step.result, dict) and 'address' in step.result:
+                            args['virtual_address'] = step.result['address']
+                            break
+        
+        return args
+    
+    def _validate_tool_args(self, tool_name: str, args: dict) -> bool:
+        """
+        验证工具参数。
+        
+        Args:
+            tool_name: 工具名称
+            args: 参数字典
+            
+        Returns:
+            如果参数有效返回True，否则返回False
+        """
+        tool_info = self.tool_registry.get_tool(tool_name)
+        if not tool_info:
+            return False
+        
+        metadata = tool_info['metadata']
+        
+        # 检查必需参数
+        for param in metadata.parameters:
+            if param.required and param.name not in args:
+                self.logger.warning(f"Missing required parameter: {param.name}")
+                return False
+        
+        # 检查参数类型
+        for param in metadata.parameters:
+            if param.name in args:
+                value = args[param.name]
+                expected_type = param.type
+                
+                # 简单类型检查
+                if expected_type == 'integer' and not isinstance(value, int):
+                    try:
+                        args[param.name] = int(value)
+                    except (ValueError, TypeError):
+                        self.logger.warning(f"Invalid type for {param.name}: expected integer, got {type(value)}")
+                        return False
+                elif expected_type == 'string' and not isinstance(value, str):
+                    args[param.name] = str(value)
+                elif expected_type == 'list' and not isinstance(value, list):
+                    self.logger.warning(f"Invalid type for {param.name}: expected list, got {type(value)}")
+                    return False
+                elif expected_type == 'boolean' and not isinstance(value, bool):
+                    args[param.name] = bool(value)
+        
+        return True
