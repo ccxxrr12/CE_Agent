@@ -84,7 +84,14 @@ class TaskPlanner:
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
+                
+                if self.logger:
+                    self.logger.info(f"LLM task planning response: {response_text[:500] if len(response_text) > 500 else response_text}")
+                
                 task_plan = self.response_parser.parse_task_plan(response_text)
+                
+                if self.logger:
+                    self.logger.info(f"Parsed task plan: {task_plan}")
                 
                 if task_plan:
                     subtasks = self._parse_llm_subtasks(task_plan.get('subtasks', []))
@@ -100,6 +107,7 @@ class TaskPlanner:
                     
                     if self.logger:
                         self.logger.info(f"LLM-generated plan for request: {request}")
+                        self.logger.info(f"Plan contains {len(subtasks)} subtasks")
                     
                     return plan
             
