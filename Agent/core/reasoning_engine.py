@@ -303,8 +303,13 @@ class ReasoningEngine:
             
             response = self.llm_client.chat(messages)
             
+            self.logger.debug(f"LLM response type: {type(response)}")
+            self.logger.debug(f"LLM response: {response}")
+            
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
+                self.logger.debug(f"Extracted response_text type: {type(response_text)}")
+                self.logger.debug(f"Extracted response_text: {response_text[:200] if len(response_text) > 200 else response_text}")
                 reasoning_dict = self.response_parser.parse_reasoning(response_text)
                 
                 if reasoning_dict:

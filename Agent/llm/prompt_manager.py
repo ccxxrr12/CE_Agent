@@ -285,61 +285,66 @@ Always provide reasoning for your decisions and explain your thought process cle
             默认模板字符串
         """
         templates = {
-            'task_planning': """Analyze the following user request and create a detailed execution plan.
+            'task_planning': """分析以下用户请求并创建详细的执行计划。
 
-User Request: {request}
+用户请求：{request}
 
-Available Tools:
+可用工具：
 {available_tools}
 
 {context}
 
-Your task:
-1. Identify the user's intent
-2. Classify the task type
-3. Break down the task into subtasks
-4. Select appropriate tools for each subtask
-5. Define dependencies between subtasks
+你的任务：
+1. 识别用户的意图
+2. 分类任务类型
+3. 将任务分解为子任务
+4. 为每个子任务选择合适的工具
+5. 定义子任务之间的依赖关系
 
-Provide your response in JSON format:
+**重要：你必须以纯 JSON 格式回复，不要包含任何其他文本。**
+
+JSON 格式示例：
 {{
   "task_type": "TASK_TYPE",
   "subtasks": [
     {{
       "id": 1,
-      "description": "Description of subtask",
+      "description": "子任务描述",
       "tools": ["tool1", "tool2"],
-      "expected_output": "Expected result",
+      "expected_output": "预期结果",
       "dependencies": []
     }}
   ]
 }}""",
             
-            'reasoning': """Analyze the current execution result and determine the next action.
+            'reasoning': """分析当前执行结果并确定下一步行动。
 
-Current Result:
+当前结果：
 {current_result}
 
-Execution Context:
+执行上下文：
 {context}
 
-Available Tools:
+可用工具：
 {available_tools}
 
-Your task:
-1. Analyze the result - was it successful?
-2. What information did we learn?
-3. What should we do next?
-4. Do we need to adjust our approach?
+你的任务：
+1. 分析结果 - 是否成功？
+2. 我们学到了什么信息？
+3. 接下来应该做什么？
+4. 我们需要调整方法吗？
 
-Provide your response in JSON format:
+**重要：你必须以纯 JSON 格式回复，不要包含任何其他文本。**
+
+JSON 格式示例：
 {{
-  "analysis": "Brief analysis of the result",
-  "findings": ["Finding 1", "Finding 2"],
+  "analysis": "对结果的简要分析",
+  "findings": ["发现1", "发现2"],
   "next_action": "continue|adjust|abort|finalize",
   "next_tool": "tool_name",
   "tool_args": {{}},
-  "reasoning": "Explanation of your decision"
+  "reasoning": "你的决策解释",
+  "confidence": 0.9
 }}""",
             
             'tool_selection': """Select the most appropriate tool for the given task.
