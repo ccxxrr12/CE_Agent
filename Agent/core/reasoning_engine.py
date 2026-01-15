@@ -310,6 +310,15 @@ class ReasoningEngine:
                 response_text = response['message']['content']
                 self.logger.debug(f"Extracted response_text type: {type(response_text)}")
                 self.logger.debug(f"Extracted response_text: {response_text[:200] if len(response_text) > 200 else response_text}")
+                
+                # 如果响应是列表，尝试转换为字符串
+                if isinstance(response_text, list):
+                    self.logger.warning(f"Response content is a list, converting to string...")
+                    if len(response_text) > 0 and isinstance(response_text[0], dict):
+                        response_text = str(response_text[0])
+                    else:
+                        response_text = str(response_text)
+                
                 reasoning_dict = self.response_parser.parse_reasoning(response_text)
                 
                 if reasoning_dict:
