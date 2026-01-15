@@ -5,6 +5,7 @@ Cheat Engine AI Agent 的火山引擎客户端。
 以运行云端 LLM 进行 AI 交互。
 """
 import logging
+import time
 from typing import Dict, Any, List, Optional
 from openai import OpenAI
 from ..config import Config
@@ -37,6 +38,26 @@ class VolcengineClient:
         
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"VolcengineClient initialized with model: {self.model_name}")
+        
+        # 请求限流机制
+        self.last_request_time = 0
+        self.min_request_interval = 2.0  # 最小请求间隔（秒）
+        self.max_retries = 3
+        self.retry_delay = 5.0  # 初始重试延迟（秒）
+    
+    def _wait_for_rate_limit(self):
+        """
+        等待以遵守请求限流。
+        """
+        current_time = time.time()
+        time_since_last_request = current_time - self.last_request_time
+        
+        if time_since_last_request < self.min_request_interval:
+            wait_time = self.min_request_interval - time_since_last_request
+            self.logger.debug(f"Rate limiting: waiting {wait_time:.2f} seconds")
+            time.sleep(wait_time)
+        
+        self.last_request_time = time.time()
     
     def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """
@@ -49,31 +70,48 @@ class VolcengineClient:
         Returns:
             LLM 响应
         """
-        try:
-            # 使用responses.create方法（火山引擎特有）
-            response = self.client.responses.create(
-                model=self.model_name,
-                input=[{"role": "user", "content": prompt}],
-                **kwargs
-            )
-            
-            # 提取响应内容
-            result = {
-                "response": response.output[0].content[0].text if response.output else "",
-                "model": response.model,
-                "usage": {
-                    "prompt_tokens": response.usage.input_tokens if response.usage else 0,
-                    "completion_tokens": response.usage.output_tokens if response.usage else 0,
-                    "total_tokens": response.usage.total_tokens if response.usage else 0
+        # 请求限流
+        self._wait_for_rate_limit()
+        
+        for attempt in range(self.max_retries):
+            try:
+                # 使用responses.create方法（火山引擎特有）
+                response = self.client.responses.create(
+                    model=self.model_name,
+                    input=[{"role": "user", "content": prompt}],
+                    **kwargs
+                )
+                
+                # 提取响应内容
+                result = {
+                    "response": response.output[0].content[0].text if response.output else "",
+                    "model": response.model,
+                    "usage": {
+                        "prompt_tokens": response.usage.input_tokens if response.usage else 0,
+                        "completion_tokens": response.usage.output_tokens if response.usage else 0,
+                        "total_tokens": response.usage.total_tokens if response.usage else 0
+                    }
                 }
-            }
-            
-            self.logger.debug(f"Volcengine generate response: {result}")
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Volcengine generate error: {e}")
-            return {"error": f"生成失败: {str(e)}"}
+                
+                self.logger.debug(f"Volcengine generate response: {result}")
+                return result
+                
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "TooManyRequests" in error_str or "ServerOverloaded" in error_str:
+                    if attempt < self.max_retries - 1:
+                        wait_time = self.retry_delay * (2 ** attempt)  # 指数退避
+                        self.logger.warning(f"Rate limited (attempt {attempt + 1}/{self.max_retries}), waiting {wait_time:.1f}s")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        self.logger.error(f"Max retries reached for rate limit")
+                        return {"error": f"生成失败: 服务器过载，请稍后重试"}
+                else:
+                    self.logger.error(f"Volcengine generate error: {e}")
+                    return {"error": f"生成失败: {str(e)}"}
+        
+        return {"error": "生成失败: 未知错误"}
     
     def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
@@ -86,45 +124,62 @@ class VolcengineClient:
         Returns:
             LLM 响应
         """
-        try:
-            # 使用responses.create方法
-            response = self.client.responses.create(
-                model=self.model_name,
-                input=messages,
-                **kwargs
-            )
-            
-            # 提取响应内容并转换为与Ollama兼容的格式
-            content = ""
-            if response.output and len(response.output) > 0:
-                # 火山引擎的响应格式：output[0]是推理过程，output[1]是实际输出
-                # 我们需要找到type='message'的输出
-                for item in response.output:
-                    if hasattr(item, 'type') and item.type == 'message':
-                        if hasattr(item, 'content') and len(item.content) > 0:
-                            if hasattr(item.content[0], 'text'):
-                                content = item.content[0].text
-                                break
-            
-            result = {
-                "message": {
-                    "content": content,
-                    "role": "assistant"
-                },
-                "model": response.model,
-                "usage": {
-                    "prompt_tokens": response.usage.input_tokens if response.usage else 0,
-                    "completion_tokens": response.usage.output_tokens if response.usage else 0,
-                    "total_tokens": response.usage.total_tokens if response.usage else 0
+        # 请求限流
+        self._wait_for_rate_limit()
+        
+        for attempt in range(self.max_retries):
+            try:
+                # 使用responses.create方法
+                response = self.client.responses.create(
+                    model=self.model_name,
+                    input=messages,
+                    **kwargs
+                )
+                
+                # 提取响应内容并转换为与Ollama兼容的格式
+                content = ""
+                if response.output and len(response.output) > 0:
+                    # 火山引擎的响应格式：output[0]是推理过程，output[1]是实际输出
+                    # 我们需要找到type='message'的输出
+                    for item in response.output:
+                        if hasattr(item, 'type') and item.type == 'message':
+                            if hasattr(item, 'content') and len(item.content) > 0:
+                                if hasattr(item.content[0], 'text'):
+                                    content = item.content[0].text
+                                    break
+                
+                result = {
+                    "message": {
+                        "content": content,
+                        "role": "assistant"
+                    },
+                    "model": response.model,
+                    "usage": {
+                        "prompt_tokens": response.usage.input_tokens if response.usage else 0,
+                        "completion_tokens": response.usage.output_tokens if response.usage else 0,
+                        "total_tokens": response.usage.total_tokens if response.usage else 0
+                    }
                 }
-            }
-            
-            self.logger.debug(f"Volcengine chat response: {result}")
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Volcengine chat error: {e}")
-            return {"error": f"聊天失败: {str(e)}"}
+                
+                self.logger.debug(f"Volcengine chat response: {result}")
+                return result
+                
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "TooManyRequests" in error_str or "ServerOverloaded" in error_str:
+                    if attempt < self.max_retries - 1:
+                        wait_time = self.retry_delay * (2 ** attempt)  # 指数退避
+                        self.logger.warning(f"Rate limited (attempt {attempt + 1}/{self.max_retries}), waiting {wait_time:.1f}s")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        self.logger.error(f"Max retries reached for rate limit")
+                        return {"error": f"聊天失败: 服务器过载，请稍后重试"}
+                else:
+                    self.logger.error(f"Volcengine chat error: {e}")
+                    return {"error": f"聊天失败: {str(e)}"}
+        
+        return {"error": "聊天失败: 未知错误"}
     
     def embeddings(self, input_text: str) -> Dict[str, Any]:
         """
