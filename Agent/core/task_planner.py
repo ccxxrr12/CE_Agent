@@ -2,8 +2,7 @@ from ..models.core_models import ExecutionPlan, SubTask, TaskState
 from ..models.base import ToolMetadata, ToolCategory
 from ..llm.prompt_manager import PromptManager
 from ..llm.response_parser import ResponseParser
-from ..llm.client import OllamaClient
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import re
 
 
@@ -19,13 +18,13 @@ class TaskType:
 class TaskPlanner:
     """AI 代理的任务规划器。"""
     
-    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, mcp_client=None):
+    def __init__(self, tool_registry, llm_client: Optional[Union['OllamaClient', 'VolcengineClient']] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, mcp_client=None):
         """
         初始化任务规划器。
         
         Args:
             tool_registry: 用于工具选择的工具注册表
-            ollama_client: 用于LLM推理的Ollama客户端
+            llm_client: 用于LLM推理的客户端（OllamaClient 或 VolcengineClient）
             use_llm: 是否使用LLM进行规划
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
@@ -33,7 +32,7 @@ class TaskPlanner:
             mcp_client: MCP客户端，用于规则模式下的连接测试
         """
         self.tool_registry = tool_registry
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.use_llm = use_llm
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
@@ -50,7 +49,7 @@ class TaskPlanner:
         Returns:
             任务的执行计划
         """
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._plan_with_llm(request)
         else:
             return self._plan_with_rules(request)
@@ -81,7 +80,7 @@ class TaskPlanner:
                 user_prompt=prompt
             )
             
-            response = self.ollama_client.chat(messages)
+            response = self.llm_client.chat(messages)
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']

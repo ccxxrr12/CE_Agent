@@ -6,10 +6,9 @@ from ..models.core_models import AnalysisReport, ExecutionStep
 from ..tools.registry import ToolRegistry
 from ..tools.executor import ToolExecutor
 from ..mcp.client import MCPClient
-from ..llm.client import OllamaClient
 from ..config import Config
 from ..utils.logger import get_logger
-from typing import Optional
+from typing import Optional, Union
 import time
 import datetime
 import threading
@@ -27,7 +26,7 @@ class AgentStatus:
 class Agent:
     """协调所有组件的主 AI 代理。"""
     
-    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, ollama_client: OllamaClient, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
+    def __init__(self, config: Config, tool_registry: ToolRegistry, mcp_client: MCPClient, llm_client: Union['OllamaClient', 'VolcengineClient'], use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化 AI 代理。
         
@@ -35,7 +34,7 @@ class Agent:
             config: 配置对象
             tool_registry: 可用工具的注册表
             mcp_client: 用于与 Cheat Engine 通信的 MCP 客户端
-            ollama_client: 用于 LLM 交互的 Ollama 客户端
+            llm_client: 用于 LLM 交互的客户端（OllamaClient 或 VolcengineClient）
             use_llm: 是否使用 LLM
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
@@ -44,12 +43,12 @@ class Agent:
         self.config = config
         self.tool_registry = tool_registry
         self.mcp_client = mcp_client
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.logger = get_logger(__name__)
         
         # 初始化核心组件
-        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt, mcp_client=mcp_client)
-        self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
+        self.task_planner = TaskPlanner(tool_registry, llm_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt, mcp_client=mcp_client)
+        self.reasoning_engine = ReasoningEngine(llm_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
         self.context_manager = ContextManager()
         self.result_synthesizer = ResultSynthesizer()
         

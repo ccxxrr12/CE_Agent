@@ -5,26 +5,25 @@ from ..models.core_models import (
 from ..utils.logger import get_logger
 from ..llm.prompt_manager import PromptManager
 from ..llm.response_parser import ResponseParser
-from ..llm.client import OllamaClient
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import time
 
 
 class ReasoningEngine:
     """AI 代理的推理引擎。"""
     
-    def __init__(self, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
+    def __init__(self, llm_client: Optional[Union['OllamaClient', 'VolcengineClient']] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化推理引擎。
         
         Args:
-            ollama_client: 用于LLM推理的Ollama客户端
+            llm_client: 用于LLM推理的客户端（OllamaClient 或 VolcengineClient）
             use_llm: 是否使用LLM进行推理
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
         """
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.use_llm = use_llm
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
@@ -41,7 +40,7 @@ class ReasoningEngine:
         Returns:
             结果的分析
         """
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._analyze_with_llm(result, context)
         else:
             return self._analyze_with_rules(result, context)
@@ -85,7 +84,7 @@ class ReasoningEngine:
                 user_prompt=prompt
             )
             
-            response = self.ollama_client.chat(messages)
+            response = self.llm_client.chat(messages)
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
@@ -258,7 +257,7 @@ class ReasoningEngine:
         Returns:
             A decision to guide next actions
         """
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._make_decision_with_llm(evaluation, context)
         else:
             return self._make_decision_with_rules(evaluation, context)
@@ -302,7 +301,7 @@ class ReasoningEngine:
                 user_prompt=prompt
             )
             
-            response = self.ollama_client.chat(messages)
+            response = self.llm_client.chat(messages)
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
