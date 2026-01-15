@@ -2,7 +2,7 @@ from ..core.task_planner import TaskPlanner
 from ..core.reasoning_engine import ReasoningEngine
 from ..core.context_manager import ContextManager
 from ..core.result_synthesizer import ResultSynthesizer
-from ..models.core_models import AnalysisReport, ExecutionStep
+from ..models.core_models import AnalysisReport, ExecutionStep, TaskState
 from ..tools.registry import ToolRegistry
 from ..tools.executor import ToolExecutor
 from ..mcp.client import MCPClient
@@ -268,7 +268,7 @@ class Agent:
                     # 如果决策是中止，则停止执行
                     if decision.action == "abort":
                         self.logger.warning(f"Aborting execution due to decision: {decision.reason}")
-                        self.context_manager.update_state(context, type.__dict__['TaskState'].FAILED)
+                        self.context_manager.update_state(context, TaskState.FAILED)
                         return
                     
                     # 工具执行之间的短暂暂停
@@ -279,7 +279,7 @@ class Agent:
         
         except Exception as e:
             self.logger.error(f"Error executing plan: {e}")
-            self.context_manager.update_state(context, type.__dict__['TaskState'].FAILED)
+            self.context_manager.update_state(context, TaskState.FAILED)
             raise
     
     def _check_dependencies_satisfied(self, subtask, context) -> bool:

@@ -119,14 +119,14 @@ class ToolExecutor:
             TimeoutError: 如果执行超时
         """
         if timeout is None:
-            return func(**kwargs)
+            return func(mcp_client=self.mcp_client, **kwargs)
         
         result = [None]
         exception = [None]
         
         def execute():
             try:
-                result[0] = func(**kwargs)
+                result[0] = func(mcp_client=self.mcp_client, **kwargs)
             except Exception as e:
                 exception[0] = e
         
