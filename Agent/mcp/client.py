@@ -8,6 +8,7 @@ import logging
 import subprocess
 import sys
 import os
+import select
 from typing import Dict, Any, Optional
 from ..config import Config
 
@@ -104,13 +105,14 @@ class MCPClient:
         """
         return self.connected and self.process is not None and self.process.poll() is None
     
-    def send_command(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def send_command(self, method: str, params: Dict[str, Any], timeout: Optional[float] = None) -> Dict[str, Any]:
         """
         使用 JSON-RPC 向 MCP 服务器发送命令。
         
         Args:
             method: 要调用的方法名
             params: 方法的参数
+            timeout: 超时时间（秒），None 表示无限等待
             
         Returns:
             MCP 服务器的响应
@@ -135,11 +137,14 @@ class MCPClient:
             self.process.stdin.write(request_json + "\n")
             self.process.stdin.flush()
             
-            # 接收响应
-            response_line = self.process.stdout.readline()
+            # 接收响应（带超时）
+            if timeout is None:
+                timeout = self.config.mcp_connection_timeout
+            
+            response_line = self._readline_with_timeout(timeout)
             if not response_line:
-                self.logger.error("从 MCP 服务器读取响应失败")
-                return {"error": "从 MCP 服务器读取响应失败"}
+                self.logger.error(f"从 MCP 服务器读取响应失败（超时: {timeout}秒）")
+                return {"error": f"从 MCP 服务器读取响应失败（超时: {timeout}秒）"}
             
             response = json.loads(response_line.strip())
             
@@ -152,6 +157,40 @@ class MCPClient:
         except Exception as e:
             self.logger.error(f"向 MCP 服务器发送命令时出错: {e}")
             return {"error": f"向 MCP 服务器发送命令时出错: {str(e)}"}
+    
+    def _readline_with_timeout(self, timeout: float) -> Optional[str]:
+        """
+        带超时的读取一行。
+        
+        Args:
+            timeout: 超时时间（秒）
+            
+        Returns:
+            读取的行，如果超时则返回 None
+        """
+        import threading
+        result = [None]
+        exception = [None]
+        
+        def read_line():
+            try:
+                result[0] = self.process.stdout.readline()
+            except Exception as e:
+                exception[0] = e
+        
+        thread = threading.Thread(target=read_line)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            self.logger.warning(f"MCP 响应读取超时（{timeout}秒）")
+            return None
+        
+        if exception[0] is not None:
+            raise exception[0]
+        
+        return result[0]
     
     def execute_script(self, script: str) -> Dict[str, Any]:
         """

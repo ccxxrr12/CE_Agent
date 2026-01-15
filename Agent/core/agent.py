@@ -226,9 +226,9 @@ class Agent:
                     # 目前，我们将使用空参数，让各个工具处理默认值
                     tool_args = self._determine_tool_args(tool_name, context)
                     
-                    # 执行工具
+                    # 执行工具（带超时）
                     self.logger.debug(f"Executing tool: {tool_name}")
-                    result = self.tool_executor.execute(tool_name, **tool_args)
+                    result = self.tool_executor.execute(tool_name, timeout=self.config.mcp_connection_timeout, **tool_args)
                     
                     # 创建执行步骤
                     step = ExecutionStep(

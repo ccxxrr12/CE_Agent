@@ -6,6 +6,7 @@ Cheat Engine AI Agent 的工具执行器。
 """
 import asyncio
 import time
+import threading
 from typing import Dict, Any, List, Optional
 from ..models.base import ToolResult, ToolCall, ToolMetadata
 from ..utils.logger import get_logger
@@ -27,12 +28,13 @@ class ToolExecutor:
         self.mcp_client = mcp_client
         self.logger = get_logger(__name__)
     
-    def execute(self, tool_name: str, **kwargs) -> ToolResult:
+    def execute(self, tool_name: str, timeout: Optional[float] = None, **kwargs) -> ToolResult:
         """
         使用提供的参数执行单个工具。
         
         Args:
             tool_name: 要执行的工具名称
+            timeout: 超时时间（秒），None 表示无限等待
             **kwargs: 工具的参数
             
         Returns:
@@ -75,8 +77,8 @@ class ToolExecutor:
                     error=error_msg
                 )
             
-            # 执行工具
-            result = tool_func(mcp_client=self.mcp_client, **kwargs)
+            # 执行工具（带超时）
+            result = self._execute_with_timeout(tool_func, timeout, **kwargs)
             
             execution_time = time.time() - start_time
             
@@ -100,6 +102,47 @@ class ToolExecutor:
                 error=error_msg,
                 execution_time=execution_time
             )
+    
+    def _execute_with_timeout(self, func: callable, timeout: Optional[float], **kwargs) -> Any:
+        """
+        带超时的执行函数。
+        
+        Args:
+            func: 要执行的函数
+            timeout: 超时时间（秒），None 表示无限等待
+            **kwargs: 函数的参数
+            
+        Returns:
+            函数执行的结果
+            
+        Raises:
+            TimeoutError: 如果执行超时
+        """
+        if timeout is None:
+            return func(**kwargs)
+        
+        result = [None]
+        exception = [None]
+        
+        def execute():
+            try:
+                result[0] = func(**kwargs)
+            except Exception as e:
+                exception[0] = e
+        
+        thread = threading.Thread(target=execute)
+        thread.daemon = True
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            self.logger.warning(f"工具执行超时（{timeout}秒）")
+            raise TimeoutError(f"工具执行超时（{timeout}秒）")
+        
+        if exception[0] is not None:
+            raise exception[0]
+        
+        return result[0]
     
     async def execute_async(self, tool_name: str, **kwargs) -> ToolResult:
         """
