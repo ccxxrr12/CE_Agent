@@ -22,9 +22,11 @@ class ReasoningEngine:
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
+            cli_callback: 日志回调函数
         """
         self.llm_client = llm_client
         self.use_llm = use_llm
+        self.cli_callback = cli_callback
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
         self.logger = get_logger(__name__)
@@ -57,6 +59,9 @@ class ReasoningEngine:
             结果的分析
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('reasoning', '使用LLM进行智能分析')
+            
             result_dict = {
                 'tool_name': result.tool_name,
                 'success': result.success,
@@ -88,10 +93,14 @@ class ReasoningEngine:
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
+                
+                if self.cli_callback:
+                    self.cli_callback('reasoning', '解析LLM分析结果')
+                
                 analysis_dict = self.response_parser.parse_result_analysis(response_text)
                 
                 if analysis_dict:
-                    return Analysis(
+                    analysis = Analysis(
                         success=analysis_dict.get('success', result.success),
                         findings=[{
                             'type': 'finding',
@@ -102,6 +111,14 @@ class ReasoningEngine:
                         next_steps=analysis_dict.get('next_steps', []),
                         confidence=0.8
                     )
+                    
+                    if self.cli_callback:
+                        self.cli_callback('reasoning', f'LLM分析完成: {len(analysis.findings)} 个发现, {len(analysis.conclusions)} 个结论')
+                    
+                    return analysis
+            
+            if self.cli_callback:
+                self.cli_callback('warning', 'LLM分析解析失败，回退到规则引擎')
             
             if self.logger:
                 self.logger.warning("Failed to parse LLM analysis, falling back to rule-based analysis")
@@ -109,6 +126,9 @@ class ReasoningEngine:
             return self._analyze_with_rules(result, context)
             
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'LLM分析出错: {e}')
+            
             if self.logger:
                 self.logger.error(f"Error in LLM analysis: {e}, falling back to rule-based analysis")
             return self._analyze_with_rules(result, context)
@@ -125,6 +145,9 @@ class ReasoningEngine:
             结果的分析
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('reasoning', '使用规则引擎进行分析')
+            
             success = result.success
             findings = []
             conclusions = []
@@ -167,14 +190,22 @@ class ReasoningEngine:
                 # Determine recovery steps
                 next_steps.append("Attempt recovery or alternative approach")
             
-            return Analysis(
+            analysis = Analysis(
                 success=success,
                 findings=findings,
                 conclusions=conclusions,
                 next_steps=next_steps,
                 confidence=confidence
             )
+            
+            if self.cli_callback:
+                self.cli_callback('reasoning', f'规则引擎分析完成: {len(findings)} 个发现, {len(conclusions)} 个结论')
+            
+            return analysis
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'规则引擎分析出错: {e}')
+            
             self.logger.error(f"Error analyzing result: {e}")
             return Analysis(
                 success=False,
@@ -274,6 +305,9 @@ class ReasoningEngine:
             决策对象
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('reasoning', '使用LLM进行智能决策')
+            
             evaluation_dict = {
                 'current_state': evaluation.current_state.value,
                 'progress': evaluation.progress,
@@ -313,12 +347,20 @@ class ReasoningEngine:
                 reasoning_dict = self.response_parser.parse_reasoning(response_text)
                 
                 if reasoning_dict:
-                    return Decision(
+                    decision = Decision(
                         action=reasoning_dict.get('next_action', 'continue'),
                         reason=reasoning_dict.get('reasoning', ''),
                         confidence=reasoning_dict.get('confidence', 0.8),
                         next_steps=reasoning_dict.get('next_steps', [])
                     )
+                    
+                    if self.cli_callback:
+                        self.cli_callback('decision', f'LLM决策: {decision.action} (置信度: {decision.confidence:.1%})')
+                    
+                    return decision
+            
+            if self.cli_callback:
+                self.cli_callback('warning', 'LLM决策解析失败，回退到规则引擎')
             
             if self.logger:
                 self.logger.warning("Failed to parse LLM decision, falling back to rule-based decision")
@@ -326,6 +368,9 @@ class ReasoningEngine:
             return self._make_decision_with_rules(evaluation, context)
             
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'LLM决策出错: {e}')
+            
             if self.logger:
                 self.logger.error(f"Error in LLM decision: {e}, falling back to rule-based decision")
             return self._make_decision_with_rules(evaluation, context)
@@ -342,6 +387,9 @@ class ReasoningEngine:
             决策对象
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('reasoning', '使用规则引擎进行决策')
+            
             action = ""
             reason = ""
             confidence = evaluation.progress  # Base confidence on progress
@@ -380,13 +428,21 @@ class ReasoningEngine:
             if evaluation.issues:
                 confidence *= 0.7  # Reduce confidence if issues exist
             
-            return Decision(
+            decision = Decision(
                 action=action,
                 reason=reason,
                 confidence=confidence,
                 next_steps=next_steps
             )
+            
+            if self.cli_callback:
+                self.cli_callback('decision', f'规则引擎决策: {decision.action} (置信度: {decision.confidence:.1%})')
+            
+            return decision
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'规则引擎决策出错: {e}')
+            
             self.logger.error(f"Error making decision: {e}")
             return Decision(
                 action="error",
@@ -404,22 +460,37 @@ class ReasoningEngine:
             context: The current execution context
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('decision', f'根据决策调整计划: {decision.action}')
+            
             if decision.action == "recover":
                 # Attempt recovery by adjusting the plan
+                if self.cli_callback:
+                    self.cli_callback('decision', '尝试恢复执行')
                 self._attempt_recovery(context)
             elif decision.action == "adjust":
                 # Modify the plan based on current state
+                if self.cli_callback:
+                    self.cli_callback('decision', '调整执行计划')
                 self._modify_plan(context)
             elif decision.action == "continue":
                 # Continue with the existing plan
+                if self.cli_callback:
+                    self.cli_callback('decision', '继续执行现有计划')
                 pass  # No adjustment needed
             elif decision.action == "finalize":
                 # Mark context as completed
+                if self.cli_callback:
+                    self.cli_callback('success', '任务完成')
                 context.state = TaskState.COMPLETED
             elif decision.action == "abort":
                 # Mark context as failed
+                if self.cli_callback:
+                    self.cli_callback('error', '任务中止')
                 context.state = TaskState.FAILED
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'调整计划出错: {e}')
             self.logger.error(f"Error adjusting plan: {e}")
     
     def recover_from_error(self, error: Exception, context: ExecutionContext) -> RecoveryAction:
