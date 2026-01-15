@@ -27,6 +27,12 @@ class Config:
     ollama_port: int = 11434
     model_name: str = "deepseek-r1:8b"
     
+    # 火山引擎配置
+    use_volcengine: bool = True
+    volcengine_api_key: str = "c7d62175-a6db-465d-ab06-6e6b2baa6914"
+    volcengine_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    volcengine_model: str = "glm-4-7-251222"
+    
     # 日志配置
     log_level: str = "INFO"
     log_file: str = "logs/ce_agent.log"
@@ -42,7 +48,7 @@ class Config:
     
     # Agent 配置
     max_retries: int = 3
-    timeout: int = 300
+    timeout: int = 900
     max_context_length: int = 4096
     
     # MCP 连接配置（保留用于向后兼容）

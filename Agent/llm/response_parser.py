@@ -57,6 +57,14 @@ class ResponseParser:
             任务计划字典，如果解析失败则返回None
         """
         try:
+            # 如果传入的是列表，尝试转换为字符串
+            if isinstance(response_text, list):
+                self.logger.warning(f"parse_task_plan received list instead of string, converting...")
+                if len(response_text) > 0 and isinstance(response_text[0], dict):
+                    response_text = str(response_text[0])
+                else:
+                    response_text = str(response_text)
+            
             json_obj = self._extract_json(response_text)
             if json_obj is None:
                 return None
@@ -82,6 +90,19 @@ class ResponseParser:
             推理结果字典，如果解析失败则返回None
         """
         try:
+            # 添加调试日志
+            self.logger.debug(f"parse_reasoning received type: {type(response_text)}")
+            self.logger.debug(f"parse_reasoning received content: {response_text[:500] if len(response_text) > 500 else response_text}")
+            
+            # 如果传入的是列表，尝试转换为字符串
+            if isinstance(response_text, list):
+                self.logger.warning(f"parse_reasoning received list instead of string, converting...")
+                # 如果列表中有字典，尝试提取文本内容
+                if len(response_text) > 0 and isinstance(response_text[0], dict):
+                    response_text = str(response_text[0])
+                else:
+                    response_text = str(response_text)
+            
             json_obj = self._extract_json(response_text)
             if json_obj is None:
                 return None
@@ -112,6 +133,14 @@ class ResponseParser:
             结果分析字典，如果解析失败则返回None
         """
         try:
+            # 如果传入的是列表，尝试转换为字符串
+            if isinstance(response_text, list):
+                self.logger.warning(f"parse_result_analysis received list instead of string, converting...")
+                if len(response_text) > 0 and isinstance(response_text[0], dict):
+                    response_text = str(response_text[0])
+                else:
+                    response_text = str(response_text)
+            
             json_obj = self._extract_json(response_text)
             if json_obj is None:
                 return None
@@ -140,6 +169,14 @@ class ResponseParser:
             决策字典，如果解析失败则返回None
         """
         try:
+            # 如果传入的是列表，尝试转换为字符串
+            if isinstance(response_text, list):
+                self.logger.warning(f"parse_decision received list instead of string, converting...")
+                if len(response_text) > 0 and isinstance(response_text[0], dict):
+                    response_text = str(response_text[0])
+                else:
+                    response_text = str(response_text)
+            
             json_obj = self._extract_json(response_text)
             if json_obj is None:
                 return None
@@ -255,6 +292,11 @@ class ResponseParser:
         Returns:
             清理后的JSON字符串
         """
+        # 移除 markdown 代码块标记
+        json_str = re.sub(r'```json\s*', '', json_str)
+        json_str = re.sub(r'```JSON\s*', '', json_str)
+        json_str = re.sub(r'```\s*', '', json_str)
+        
         # 移除注释
         json_str = re.sub(r'//.*?\n', '\n', json_str)
         json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)

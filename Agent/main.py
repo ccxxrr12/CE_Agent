@@ -13,6 +13,7 @@ from .config import Config
 from .core.agent import Agent
 from .mcp.client import MCPClient
 from .llm.client import OllamaClient
+from .llm.volcengine_client import VolcengineClient
 from .tools.registry import ToolRegistry
 from .tools.mcp_basic_tools import register_mcp_tools
 from .tools.mcp_advanced_tools import register_advanced_mcp_tools
@@ -37,7 +38,18 @@ def create_agent(config: Config, use_llm: bool = True, cli_callback=None) -> Age
     # 初始化客户端
     # 注意：MCP 客户端现在通过子进程 stdio 通信，host 和 port 参数保留用于向后兼容
     mcp_client = MCPClient(config.mcp_host, config.mcp_port)
-    ollama_client = OllamaClient(config.ollama_host, config.ollama_port, config.model_name)
+    
+    # 根据配置选择LLM客户端
+    if config.use_volcengine:
+        logger.info("Using Volcengine (ARK) API for LLM")
+        llm_client = VolcengineClient(
+            api_key=config.volcengine_api_key,
+            base_url=config.volcengine_base_url,
+            model_name=config.volcengine_model
+        )
+    else:
+        logger.info("Using local Ollama for LLM")
+        llm_client = OllamaClient(config.ollama_host, config.ollama_port, config.model_name)
     
     # 初始化工具注册表
     tool_registry = ToolRegistry()
@@ -49,7 +61,7 @@ def create_agent(config: Config, use_llm: bool = True, cli_callback=None) -> Age
     logger.info(f"Registered {len(tool_registry.list_all_tools())} tools")
     
     # 初始化代理
-    agent = Agent(config, tool_registry, mcp_client, ollama_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt, use_json_prompt=config.use_json_prompt, cli_callback=cli_callback)
+    agent = Agent(config, tool_registry, mcp_client, llm_client, use_llm=use_llm, use_simple_prompt=config.use_simple_prompt, use_minimal_prompt=config.use_minimal_prompt, use_json_prompt=config.use_json_prompt)
     
     return agent, mcp_client
 

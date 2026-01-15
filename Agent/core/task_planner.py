@@ -2,8 +2,7 @@ from ..models.core_models import ExecutionPlan, SubTask, TaskState
 from ..models.base import ToolMetadata, ToolCategory
 from ..llm.prompt_manager import PromptManager
 from ..llm.response_parser import ResponseParser
-from ..llm.client import OllamaClient
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import re
 
 
@@ -19,25 +18,26 @@ class TaskType:
 class TaskPlanner:
     """AI 代理的任务规划器。"""
     
-    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, cli_callback: Optional[callable] = None):
+    def __init__(self, tool_registry, llm_client: Optional[Union['OllamaClient', 'VolcengineClient']] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, mcp_client=None):
         """
         初始化任务规划器。
         
         Args:
             tool_registry: 用于工具选择的工具注册表
-            ollama_client: 用于LLM推理的Ollama客户端
+            llm_client: 用于LLM推理的客户端（OllamaClient 或 VolcengineClient）
             use_llm: 是否使用LLM进行规划
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
-            cli_callback: 日志回调函数
+            mcp_client: MCP客户端，用于规则模式下的连接测试
         """
         self.tool_registry = tool_registry
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.use_llm = use_llm
         self.cli_callback = cli_callback
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
+        self.mcp_client = mcp_client
         self.logger = None  # 将由代理设置
         
     def plan(self, request: str) -> ExecutionPlan:
@@ -50,10 +50,7 @@ class TaskPlanner:
         Returns:
             任务的执行计划
         """
-        if self.cli_callback:
-            self.cli_callback('planning', f'开始规划任务: {request}')
-        
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._plan_with_llm(request)
         else:
             return self._plan_with_rules(request)
@@ -90,16 +87,7 @@ class TaskPlanner:
                 user_prompt=prompt
             )
             
-            if self.cli_callback:
-                self.cli_callback('llm_call', '任务规划', status='starting')
-            
-            import time
-            start_time = time.time()
-            response = self.ollama_client.chat(messages)
-            execution_time = time.time() - start_time
-            
-            if self.cli_callback:
-                self.cli_callback('llm_call', '任务规划', status='success', duration=execution_time)
+            response = self.llm_client.chat(messages)
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
@@ -178,9 +166,26 @@ class TaskPlanner:
             
         Returns:
             任务的执行计划
+            
+        Raises:
+            ConnectionError: 如果 MCP 连接测试失败
         """
-        if self.cli_callback:
-            self.cli_callback('planning', '使用规则引擎进行规划')
+        # 在规则模式下，先测试 MCP 连接
+        if self.mcp_client:
+            try:
+                self.logger.info("规则模式：正在测试 MCP 连接...")
+                ping_result = self.mcp_client.send_command("ping", {})
+                
+                if 'error' in ping_result:
+                    error_msg = f"MCP 连接测试失败: {ping_result.get('error')}"
+                    self.logger.error(error_msg)
+                    raise ConnectionError(error_msg)
+                
+                self.logger.info("规则模式：MCP 连接测试成功")
+            except Exception as e:
+                error_msg = f"MCP 连接测试失败: {str(e)}"
+                self.logger.error(error_msg)
+                raise ConnectionError(error_msg)
         
         intent = self.identify_intent(request)
         

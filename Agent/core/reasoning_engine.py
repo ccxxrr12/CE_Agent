@@ -5,27 +5,26 @@ from ..models.core_models import (
 from ..utils.logger import get_logger
 from ..llm.prompt_manager import PromptManager
 from ..llm.response_parser import ResponseParser
-from ..llm.client import OllamaClient
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import time
 
 
 class ReasoningEngine:
     """AI 代理的推理引擎。"""
     
-    def __init__(self, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, cli_callback: Optional[callable] = None):
+    def __init__(self, llm_client: Optional[Union['OllamaClient', 'VolcengineClient']] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
         """
         初始化推理引擎。
         
         Args:
-            ollama_client: 用于LLM推理的Ollama客户端
+            llm_client: 用于LLM推理的客户端（OllamaClient 或 VolcengineClient）
             use_llm: 是否使用LLM进行推理
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
             cli_callback: 日志回调函数
         """
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.use_llm = use_llm
         self.cli_callback = cli_callback
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
@@ -43,10 +42,7 @@ class ReasoningEngine:
         Returns:
             结果的分析
         """
-        if self.cli_callback:
-            self.cli_callback('reasoning', f'分析工具执行结果: {result.tool_name}')
-        
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._analyze_with_llm(result, context)
         else:
             return self._analyze_with_rules(result, context)
@@ -93,15 +89,7 @@ class ReasoningEngine:
                 user_prompt=prompt
             )
             
-            if self.cli_callback:
-                self.cli_callback('llm_call', '结果分析', status='starting')
-            
-            start_time = time.time()
-            response = self.ollama_client.chat(messages)
-            execution_time = time.time() - start_time
-            
-            if self.cli_callback:
-                self.cli_callback('llm_call', '结果分析', status='success', duration=execution_time)
+            response = self.llm_client.chat(messages)
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
@@ -300,10 +288,7 @@ class ReasoningEngine:
         Returns:
             A decision to guide next actions
         """
-        if self.cli_callback:
-            self.cli_callback('decision', f'根据状态评估做出决策: 进度 {evaluation.progress:.1%}')
-        
-        if self.use_llm and self.ollama_client:
+        if self.use_llm and self.llm_client:
             return self._make_decision_with_llm(evaluation, context)
         else:
             return self._make_decision_with_rules(evaluation, context)
@@ -350,22 +335,15 @@ class ReasoningEngine:
                 user_prompt=prompt
             )
             
-            if self.cli_callback:
-                self.cli_callback('llm_call', '决策推理', status='starting')
+            response = self.llm_client.chat(messages)
             
-            start_time = time.time()
-            response = self.ollama_client.chat(messages)
-            execution_time = time.time() - start_time
-            
-            if self.cli_callback:
-                self.cli_callback('llm_call', '决策推理', status='success', duration=execution_time)
+            self.logger.debug(f"LLM response type: {type(response)}")
+            self.logger.debug(f"LLM response: {response}")
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
-                
-                if self.cli_callback:
-                    self.cli_callback('reasoning', '解析LLM决策')
-                
+                self.logger.debug(f"Extracted response_text type: {type(response_text)}")
+                self.logger.debug(f"Extracted response_text: {response_text[:200] if len(response_text) > 200 else response_text}")
                 reasoning_dict = self.response_parser.parse_reasoning(response_text)
                 
                 if reasoning_dict:
