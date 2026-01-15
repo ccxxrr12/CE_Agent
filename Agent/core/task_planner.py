@@ -34,6 +34,7 @@ class TaskPlanner:
         self.tool_registry = tool_registry
         self.llm_client = llm_client
         self.use_llm = use_llm
+        self.cli_callback = cli_callback
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
         self.mcp_client = mcp_client
@@ -65,8 +66,14 @@ class TaskPlanner:
             任务的执行计划
         """
         try:
+            if self.cli_callback:
+                self.cli_callback('planning', '使用LLM进行智能规划')
+            
             available_tools = [tool['metadata'] for tool in self.tool_registry._tools.values()]
             tool_names = [tool.name for tool in available_tools]
+            
+            if self.cli_callback:
+                self.cli_callback('planning', f'可用工具: {", ".join(tool_names)}')
             
             prompt = self.prompt_manager.get_task_planning_prompt(
                 request=request,
@@ -84,6 +91,10 @@ class TaskPlanner:
             
             if 'message' in response and 'content' in response['message']:
                 response_text = response['message']['content']
+                
+                if self.cli_callback:
+                    self.cli_callback('planning', '解析LLM响应')
+                
                 task_plan = self.response_parser.parse_task_plan(response_text)
                 
                 if task_plan:
@@ -98,10 +109,16 @@ class TaskPlanner:
                         estimated_steps=len(subtasks)
                     )
                     
+                    if self.cli_callback:
+                        self.cli_callback('planning', f'成功生成执行计划: {len(subtasks)} 个子任务, 类型: {task_type}')
+                    
                     if self.logger:
                         self.logger.info(f"LLM-generated plan for request: {request}")
                     
                     return plan
+            
+            if self.cli_callback:
+                self.cli_callback('warning', 'LLM响应解析失败，回退到规则引擎')
             
             if self.logger:
                 self.logger.warning("Failed to parse LLM response, falling back to rule-based planning")
@@ -109,6 +126,9 @@ class TaskPlanner:
             return self._plan_with_rules(request)
             
         except Exception as e:
+            if self.cli_callback:
+                self.cli_callback('error', f'LLM规划出错: {e}')
+            
             if self.logger:
                 self.logger.error(f"Error in LLM planning: {e}, falling back to rule-based planning")
             return self._plan_with_rules(request)
@@ -169,11 +189,20 @@ class TaskPlanner:
         
         intent = self.identify_intent(request)
         
+        if self.cli_callback:
+            self.cli_callback('planning', f'识别意图: {intent}')
+        
         # 分类任务类型
         task_type = self.classify_task(intent)
         
+        if self.cli_callback:
+            self.cli_callback('planning', f'任务类型: {task_type}')
+        
         # 将任务分解为子任务
         subtasks = self.decompose_task(task_type, request)
+        
+        if self.cli_callback:
+            self.cli_callback('planning', f'生成 {len(subtasks)} 个子任务')
         
         # 生成执行计划
         plan = ExecutionPlan(
@@ -183,6 +212,9 @@ class TaskPlanner:
             subtasks=subtasks,
             estimated_steps=len(subtasks)
         )
+        
+        if self.cli_callback:
+            self.cli_callback('success', f'规则引擎规划完成: {len(subtasks)} 个子任务')
         
         return plan
     

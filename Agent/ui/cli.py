@@ -197,6 +197,141 @@ class CLI:
         print(f"{Fore.WHITE}队列任务数: {Fore.YELLOW + agent.task_queue.qsize()}")
         print(f"{Fore.WHITE}可用工具数: {Fore.YELLOW + len(agent.tool_registry.list_all_tools())}")
         print(Fore.CYAN + "="*60)
+    
+    def display_step_log(self, step_type: str, message: str, step_num: int = None, total_steps: int = None):
+        """
+        Display real-time step log during execution.
+        
+        Args:
+            step_type: Type of step (planning, execution, reasoning, decision, etc.)
+            message: Step message to display
+            step_num: Optional current step number
+            total_steps: Optional total number of steps
+        """
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        # Choose color based on step type
+        type_colors = {
+            'planning': Fore.MAGENTA,
+            'execution': Fore.CYAN,
+            'reasoning': Fore.YELLOW,
+            'decision': Fore.GREEN,
+            'error': Fore.RED,
+            'success': Fore.GREEN,
+            'warning': Fore.YELLOW,
+            'info': Fore.WHITE
+        }
+        
+        color = type_colors.get(step_type.lower(), Fore.WHITE)
+        type_icon = {
+            'planning': '📋',
+            'execution': '⚙️',
+            'reasoning': '🤔',
+            'decision': '✓',
+            'error': '✗',
+            'success': '✓',
+            'warning': '⚠',
+            'info': 'ℹ'
+        }
+        
+        icon = type_icon.get(step_type.lower(), '•')
+        
+        # Build step info
+        step_info = f"[{timestamp}] "
+        if step_num is not None and total_steps is not None:
+            step_info += f"步骤 {step_num}/{total_steps} - "
+        
+        step_info += f"{icon} {step_type.upper()}: {message}"
+        
+        print(f"{color}{step_info}{Style.RESET_ALL}")
+    
+    def display_tool_call(self, tool_name: str, params: dict, status: str = "starting"):
+        """
+        Display tool call information.
+        
+        Args:
+            tool_name: Name of the tool being called
+            params: Parameters passed to the tool
+            status: Status of the tool call (starting, success, failed)
+        """
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        if status == "starting":
+            color = Fore.CYAN
+            icon = "🔧"
+            status_text = "调用中..."
+        elif status == "success":
+            color = Fore.GREEN
+            icon = "✓"
+            status_text = "成功"
+        elif status == "failed":
+            color = Fore.RED
+            icon = "✗"
+            status_text = "失败"
+        else:
+            color = Fore.WHITE
+            icon = "•"
+            status_text = status
+        
+        # Format parameters for display
+        if params:
+            params_str = ", ".join([f"{k}={v}" for k, v in params.items()])
+            params_display = f" (参数: {params_str})"
+        else:
+            params_display = ""
+        
+        print(f"{color}[{timestamp}] {icon} 工具调用: {tool_name}{params_display} - {status_text}{Style.RESET_ALL}")
+    
+    def display_llm_call(self, purpose: str, status: str = "starting", duration: float = None):
+        """
+        Display LLM call information.
+        
+        Args:
+            purpose: Purpose of the LLM call (planning, reasoning, decision)
+            status: Status of the LLM call (starting, success, failed)
+            duration: Optional duration of the LLM call in seconds
+        """
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        if status == "starting":
+            color = Fore.MAGENTA
+            icon = "🧠"
+            status_text = "思考中..."
+        elif status == "success":
+            color = Fore.GREEN
+            icon = "✓"
+            duration_text = f" ({duration:.2f}s)" if duration else ""
+            status_text = f"完成{duration_text}"
+        elif status == "failed":
+            color = Fore.RED
+            icon = "✗"
+            status_text = "失败"
+        else:
+            color = Fore.WHITE
+            icon = "•"
+            status_text = status
+        
+        print(f"{color}[{timestamp}] {icon} LLM调用 ({purpose}): {status_text}{Style.RESET_ALL}")
+    
+    def display_analysis_result(self, findings: list, next_steps: list):
+        """
+        Display analysis results from reasoning engine.
+        
+        Args:
+            findings: List of findings from analysis
+            next_steps: List of recommended next steps
+        """
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        if findings:
+            print(f"{Fore.YELLOW}[{timestamp}] 🔍 分析结果:")
+            for i, finding in enumerate(findings, 1):
+                print(f"{Fore.WHITE}  {i}. {finding}")
+        
+        if next_steps:
+            print(f"{Fore.CYAN}[{timestamp}] ➡️  下一步:")
+            for i, step in enumerate(next_steps, 1):
+                print(f"{Fore.WHITE}  {i}. {step}")
                 
     def run_batch_mode(self, input_file: str, output_file: Optional[str] = None, agent: Optional[Agent] = None):
         """
