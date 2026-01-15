@@ -48,7 +48,7 @@ class Agent:
         self.logger = get_logger(__name__)
         
         # 初始化核心组件
-        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
+        self.task_planner = TaskPlanner(tool_registry, ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt, mcp_client=mcp_client)
         self.reasoning_engine = ReasoningEngine(ollama_client, use_llm=use_llm, use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt)
         self.context_manager = ContextManager()
         self.result_synthesizer = ResultSynthesizer()

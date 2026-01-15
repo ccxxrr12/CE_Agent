@@ -19,7 +19,7 @@ class TaskType:
 class TaskPlanner:
     """AI 代理的任务规划器。"""
     
-    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False):
+    def __init__(self, tool_registry, ollama_client: Optional[OllamaClient] = None, use_llm: bool = True, use_simple_prompt: bool = False, use_minimal_prompt: bool = False, use_json_prompt: bool = False, mcp_client=None):
         """
         初始化任务规划器。
         
@@ -30,12 +30,14 @@ class TaskPlanner:
             use_simple_prompt: 是否使用简化版提示词
             use_minimal_prompt: 是否使用超简洁版提示词
             use_json_prompt: 是否使用JSON格式提示词
+            mcp_client: MCP客户端，用于规则模式下的连接测试
         """
         self.tool_registry = tool_registry
         self.ollama_client = ollama_client
         self.use_llm = use_llm
         self.prompt_manager = PromptManager(use_simple_prompt=use_simple_prompt, use_minimal_prompt=use_minimal_prompt, use_json_prompt=use_json_prompt) if use_llm else None
         self.response_parser = ResponseParser() if use_llm else None
+        self.mcp_client = mcp_client
         self.logger = None  # 将由代理设置
         
     def plan(self, request: str) -> ExecutionPlan:
@@ -145,7 +147,27 @@ class TaskPlanner:
             
         Returns:
             任务的执行计划
+            
+        Raises:
+            ConnectionError: 如果 MCP 连接测试失败
         """
+        # 在规则模式下，先测试 MCP 连接
+        if self.mcp_client:
+            try:
+                self.logger.info("规则模式：正在测试 MCP 连接...")
+                ping_result = self.mcp_client.send_command("ping", {})
+                
+                if 'error' in ping_result:
+                    error_msg = f"MCP 连接测试失败: {ping_result.get('error')}"
+                    self.logger.error(error_msg)
+                    raise ConnectionError(error_msg)
+                
+                self.logger.info("规则模式：MCP 连接测试成功")
+            except Exception as e:
+                error_msg = f"MCP 连接测试失败: {str(e)}"
+                self.logger.error(error_msg)
+                raise ConnectionError(error_msg)
+        
         intent = self.identify_intent(request)
         
         # 分类任务类型

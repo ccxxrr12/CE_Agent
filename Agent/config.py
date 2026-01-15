@@ -33,8 +33,8 @@ class Config:
     
     # 提示词配置
     use_simple_prompt: bool = False
-    use_minimal_prompt: bool = False
-    use_json_prompt: bool = True
+    use_minimal_prompt: bool = True
+    use_json_prompt: bool = False
     system_prompt_file: str = "prompts/SYSTEM_PROMPT.md"
     system_prompt_simple_file: str = "prompts/SYSTEM_PROMPT_SIMPLE.md"
     system_prompt_minimal_file: str = "prompts/SYSTEM_PROMPT_MINIMAL.md"
@@ -42,7 +42,7 @@ class Config:
     
     # Agent 配置
     max_retries: int = 3
-    timeout: int = 300
+    timeout: int = 900
     max_context_length: int = 4096
     
     # MCP 连接配置（保留用于向后兼容）
