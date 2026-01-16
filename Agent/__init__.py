@@ -8,7 +8,7 @@ __version__ = "0.1.0"
 __author__ = "Cheat Engine MCP Bridge Team"
 
 from .config import Config
-from .mcp import MCPClient
+from .tools.core.mcp_client import MCPBridgeClient as MCPClient
 from .llm import OllamaClient
 from .tools.base.tool_registry import ToolRegistry
 from .core import Agent, AgentStatus

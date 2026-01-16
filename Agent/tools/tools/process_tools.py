@@ -6,7 +6,7 @@ Cheat Engine AI Agent 的进程工具。
 from typing import Any, Dict, List
 from ..models.base import ToolMetadata, Parameter, ToolCategory
 from ..base.decorators import tool
-from ..utils.logger import get_logger
+from ...utils.logger import get_logger
 
 
 logger = get_logger(__name__)

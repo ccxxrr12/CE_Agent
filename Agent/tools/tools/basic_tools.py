@@ -6,7 +6,7 @@ Cheat Engine AI Agent 的基础工具。
 from typing import Any, Dict
 from ..models.base import ToolMetadata, Parameter, ToolCategory
 from ..base.decorators import tool
-from ..utils.logger import get_logger
+from ...utils.logger import get_logger
 
 
 logger = get_logger(__name__)
@@ -48,7 +48,7 @@ def ping_impl(mcp_client) -> Dict[str, Any]:
             description="The Lua script to execute"
         )
     ],
-    examples=['evaluate_lua(code="return getAddressSafe(\"kernel32.dll\")")']
+    examples=['evaluate_lua(code=\'print("Hello, Cheat Engine!")\')']
 )
 def evaluate_lua_impl(mcp_client, code: str) -> Dict[str, Any]:
     """
@@ -56,13 +56,13 @@ def evaluate_lua_impl(mcp_client, code: str) -> Dict[str, Any]:
     
     Args:
         mcp_client: MCP客户端实例
-        code: Lua脚本代码
+        code: 要执行的Lua脚本
         
     Returns:
         脚本执行结果
     """
     try:
-        response = mcp_client.send_command("evaluate_lua", {"code": code})
+        response = mcp_client.send_command("execute_script", {"script": code})
         return response
     except Exception as e:
         logger.error(f"evaluate_lua 命令执行失败: {e}")

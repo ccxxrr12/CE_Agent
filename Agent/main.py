@@ -11,7 +11,7 @@ import argparse
 
 from .config import Config
 from .core.agent import Agent
-from .mcp.client import MCPClient
+from .tools.core.mcp_client import MCPBridgeClient as MCPClient
 from .llm.client import OllamaClient
 from .llm.volcengine_client import VolcengineClient
 from .tools import ToolRegistry
@@ -33,8 +33,8 @@ def create_agent(config: Config, use_llm: bool = True) -> Agent:
     logger = logging.getLogger(__name__)
     
     # 初始化客户端
-    # 注意：MCP 客户端现在通过子进程 stdio 通信，host 和 port 参数保留用于向后兼容
-    mcp_client = MCPClient(config.mcp_host, config.mcp_port)
+    # MCP客户端使用命名管道与CE桥接通信
+    mcp_client = MCPClient()
     
     # 根据配置选择LLM客户端
     if config.use_volcengine:
@@ -155,7 +155,7 @@ def main():
     finally:
         # 清理
         logger.info("Shutting down Cheat Engine AI Agent...")
-        mcp_client.disconnect()
+        mcp_client.close()
         logger.info("Shutdown complete")
 
 

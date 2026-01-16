@@ -4,11 +4,15 @@ Cheat Engine AI Agent 的结果解析器。
 该模块实现了工具执行结果的解析逻辑，
 处理来自 MCP 工具的不同数据类型和格式。
 """
-import json
+# 优先使用orjson进行更快的JSON解析
+try:
+    import orjson as json
+except ImportError:
+    import json
 import re
 from typing import Any, Dict, Optional, List
 from ..models.base import ToolResult, ToolMetadata
-from ..utils.logger import get_logger
+from ...utils.logger import get_logger
 
 
 class ResultParser:

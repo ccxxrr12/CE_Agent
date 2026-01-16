@@ -3,7 +3,11 @@ Cheat Engine AI Agent 的LLM响应解析器。
 
 该模块解析LLM响应，提取工具调用、决策和结构化数据。
 """
-import json
+# 优先使用orjson进行更快的JSON解析
+try:
+    import orjson as json
+except ImportError:
+    import json
 import re
 from typing import Dict, Any, Optional, List, Tuple
 from ..utils.logger import get_logger
@@ -230,22 +234,22 @@ class ResponseParser:
         """
         # 1. 尝试标准JSON提取
         result = self._try_standard_json_extraction(text)
-        if result:
+        if result and isinstance(result, dict):
             return result
         
         # 2. 尝试修复常见的JSON错误
         result = self._try_json_repair(text)
-        if result:
+        if result and isinstance(result, dict):
             return result
         
         # 3. 尝试从自然语言中提取结构化信息
         result = self._extract_from_natural_language(text)
-        if result:
+        if result and isinstance(result, dict):
             return result
         
         # 4. 尝试部分JSON提取
         result = self._try_partial_json_extraction(text)
-        if result:
+        if result and isinstance(result, dict):
             return result
         
         return None

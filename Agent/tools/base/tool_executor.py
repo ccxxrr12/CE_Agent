@@ -6,27 +6,30 @@ Cheat Engine AI Agent 的工具执行器。
 """
 import asyncio
 import time
-import threading
+import concurrent.futures
 from typing import Dict, Any, List, Optional, Callable
 from ..models.base import ToolResult, ToolCall, ToolMetadata
-from ..utils.logger import get_logger
+from ...utils.logger import get_logger
 from .tool_registry import ToolRegistry
 
 
 class ToolExecutor:
     """用于运行已注册工具的执行器。"""
     
-    def __init__(self, registry: ToolRegistry, mcp_client=None):
+    def __init__(self, registry: ToolRegistry, mcp_client=None, max_workers: int = 5):
         """
         初始化工具执行器。
         
         Args:
             registry: 要使用的工具注册表
             mcp_client: 用于执行工具的 MCP 客户端
+            max_workers: 线程池的最大工作线程数
         """
         self.registry = registry
         self.mcp_client = mcp_client
         self.logger = get_logger(__name__)
+        # 创建线程池，避免每次创建新线程
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
     
     def execute(self, tool_name: str, timeout: Optional[float] = None, **kwargs) -> ToolResult:
         """
@@ -123,35 +126,21 @@ class ToolExecutor:
         if timeout is None:
             return func(mcp_client=self.mcp_client, **kwargs)
         
-        result = [None]
-        exception = [None]
-        
-        def execute():
-            try:
-                result[0] = func(mcp_client=self.mcp_client, **kwargs)
-            except Exception as e:
-                exception[0] = e
-        
-        thread = threading.Thread(target=execute)
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout=timeout)
-        
-        if thread.is_alive():
+        # 使用线程池执行函数，避免每次创建新线程
+        try:
+            future = self.executor.submit(func, mcp_client=self.mcp_client, **kwargs)
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
             self.logger.warning(f"工具执行超时（{timeout}秒）")
             raise TimeoutError(f"工具执行超时（{timeout}秒）")
-        
-        if exception[0] is not None:
-            raise exception[0]
-        
-        return result[0]
     
-    async def execute_async(self, tool_name: str, **kwargs) -> ToolResult:
+    async def execute_async(self, tool_name: str, timeout: Optional[float] = None, **kwargs) -> ToolResult:
         """
         异步执行单个工具。
         
         Args:
             tool_name: 要执行的工具名称
+            timeout: 超时时间（秒），None 表示无限等待
             **kwargs: 工具的参数
             
         Returns:
@@ -194,8 +183,10 @@ class ToolExecutor:
                     error=error_msg
                 )
             
-            # 执行工具
-            result = await self._execute_async_impl(tool_func, **kwargs)
+            # 执行工具（带超时）
+            self.logger.info(f"开始执行工具（异步）: {tool_name}, 超时: {timeout}秒")
+            result = await self._execute_async_impl(tool_func, timeout, **kwargs)
+            self.logger.info(f"工具执行完成（异步）: {tool_name}, 耗时: {time.time() - start_time:.2f}秒")
             
             execution_time = time.time() - start_time
             
@@ -209,7 +200,7 @@ class ToolExecutor:
             
         except Exception as e:
             execution_time = time.time() - start_time
-            error_msg = f"Error executing tool '{tool_name}': {str(e)}"
+            error_msg = f"Error executing tool '{tool_name}' (async): {str(e)}"
             self.logger.error(error_msg)
             
             return ToolResult(
@@ -220,23 +211,40 @@ class ToolExecutor:
                 execution_time=execution_time
             )
     
-    async def _execute_async_impl(self, func: callable, **kwargs) -> Any:
+    async def _execute_async_impl(self, func: callable, timeout: Optional[float], **kwargs) -> Any:
         """
         异步执行函数的实现。
         
         Args:
             func: 要执行的函数
+            timeout: 超时时间（秒），None 表示无限等待
             **kwargs: 函数的参数
             
         Returns:
             函数执行的结果
         """
         if asyncio.iscoroutinefunction(func):
-            return await func(mcp_client=self.mcp_client, **kwargs)
+            if timeout is None:
+                return await func(mcp_client=self.mcp_client, **kwargs)
+            else:
+                # 为协程添加超时
+                return await asyncio.wait_for(
+                    func(mcp_client=self.mcp_client, **kwargs),
+                    timeout=timeout
+                )
         else:
             # 如果不是协程，在线程池中运行它
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, func, mcp_client=self.mcp_client, **kwargs)
+            if timeout is None:
+                return await loop.run_in_executor(
+                    self.executor, func, mcp_client=self.mcp_client, **kwargs
+                )
+            else:
+                # 为线程池任务添加超时
+                future = loop.run_in_executor(
+                    self.executor, func, mcp_client=self.mcp_client, **kwargs
+                )
+                return await asyncio.wait_for(future, timeout=timeout)
     
     def execute_batch(self, calls: List[ToolCall]) -> List[ToolResult]:
         """
@@ -261,18 +269,23 @@ class ToolExecutor:
         
         return results
     
-    async def execute_batch_async(self, calls: List[ToolCall]) -> List[ToolResult]:
+    async def execute_batch_async(self, calls: List[ToolCall], max_concurrency: int = 5) -> List[ToolResult]:
         """
         异步执行多个工具（并发）。
         
         Args:
             calls: 要执行的工具调用列表
+            max_concurrency: 最大并发数
             
         Returns:
             每个工具调用的结果列表
         """
+        # 使用信号量控制并发
+        semaphore = asyncio.Semaphore(max_concurrency)
+        
         async def execute_single_call(call: ToolCall) -> ToolResult:
-            return await self.execute_async(call.name, **call.arguments)
+            async with semaphore:
+                return await self.execute_async(call.name, **call.arguments)
         
         tasks = [execute_single_call(call) for call in calls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -293,6 +306,13 @@ class ToolExecutor:
                 processed_results.append(result)
         
         return processed_results
+    
+    def shutdown(self):
+        """
+        关闭执行器，释放资源。
+        """
+        self.executor.shutdown(wait=True)
+        self.logger.info("ToolExecutor 已关闭")
     
     def validate_parameters(self, tool_name: str, params: Dict[str, Any]) -> bool:
         """

@@ -5,6 +5,9 @@
 mcp>=1.0.0
 anyio>=4.0.0
 
+# Faster JSON parsing
+orjson>=3.9.0
+
 # Windows API Bindings
 pywin32>=306
 

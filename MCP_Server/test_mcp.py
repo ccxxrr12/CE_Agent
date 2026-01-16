@@ -60,7 +60,10 @@ class MCPTestClient:
             "id": self.request_id
         }
         
-        data = json.dumps(request).encode('utf-8')
+        # 将请求序列化为JSON并编码为字节
+        data = json.dumps(request)
+        if isinstance(data, str):
+            data = data.encode('utf-8')
         header = struct.pack('<I', len(data))
         win32file.WriteFile(self.handle, header + data)
         

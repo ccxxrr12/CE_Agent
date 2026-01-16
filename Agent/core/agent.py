@@ -5,7 +5,7 @@ from ..core.result_synthesizer import ResultSynthesizer
 from ..models.core_models import AnalysisReport, ExecutionStep, TaskState
 from ..tools.base.tool_registry import ToolRegistry
 from ..tools.base.tool_executor import ToolExecutor
-from ..mcp.client import MCPClient
+from ..tools.core.mcp_client import MCPBridgeClient as MCPClient
 from ..config import Config
 from ..utils.logger import get_logger
 from typing import Optional, Union

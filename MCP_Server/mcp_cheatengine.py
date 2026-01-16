@@ -183,7 +183,9 @@ class CEBridgeClient:
             
             try:
                 # 将请求序列化为JSON并编码为字节
-                req_json = json.dumps(request).encode('utf-8')
+                req_json = json.dumps(request)
+                if isinstance(req_json, str):
+                    req_json = req_json.encode('utf-8')
                 # 创建长度头（小端序）
                 header = struct.pack('<I', len(req_json))
                 

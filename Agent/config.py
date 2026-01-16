@@ -1,11 +1,120 @@
 """
 Cheat Engine AI Agent 配置模块。
 
-该模块包含在整个 Agent 中使用的配置类和常量。
+该模块包含在整个 Agent 中使用的配置类和常量，支持从环境变量和配置文件加载配置。
 """
 import os
-from dataclasses import dataclass
-from typing import Optional
+import json
+from dataclasses import dataclass, asdict
+from typing import Optional, Dict, Any
+from pathlib import Path
+
+
+class ConfigManager:
+    """配置管理器，负责加载和管理配置。"""
+    
+    def __init__(self):
+        """初始化配置管理器。"""
+        self._config: Optional[Config] = None
+        self._config_file: Optional[str] = None
+    
+    def load_config(self, config_file: Optional[str] = None) -> "Config":
+        """
+        加载配置。
+        
+        Args:
+            config_file: 配置文件路径（可选）
+            
+        Returns:
+            配置实例
+        """
+        # 加载默认配置
+        config_dict = asdict(Config())
+        
+        # 如果提供了配置文件，加载配置文件
+        if config_file:
+            self._config_file = config_file
+            if os.path.exists(config_file):
+                with open(config_file, "r", encoding="utf-8") as f:
+                    file_config = json.load(f)
+                    config_dict.update(file_config)
+        
+        # 从环境变量加载配置（优先级最高）
+        env_config = self._load_from_env()
+        config_dict.update(env_config)
+        
+        # 创建配置实例
+        self._config = Config(**config_dict)
+        return self._config
+    
+    def _load_from_env(self) -> Dict[str, Any]:
+        """
+        从环境变量加载配置。
+        
+        Returns:
+            从环境变量加载的配置
+        """
+        env_config = {}
+        prefix = "CE_AGENT_"
+        
+        for key in os.environ:
+            if key.startswith(prefix):
+                # 转换环境变量名称为配置属性名称
+                # 例如：CE_AGENT_MCP_HOST -> mcp_host
+                config_key = key[len(prefix):].lower()
+                config_key = config_key.replace("_", " ")
+                config_key = config_key.title().replace(" ", "")
+                config_key = config_key[0].lower() + config_key[1:]
+                
+                # 尝试转换值的类型
+                value = os.environ[key]
+                if value.lower() == "true":
+                    env_config[config_key] = True
+                elif value.lower() == "false":
+                    env_config[config_key] = False
+                else:
+                    try:
+                        env_config[config_key] = int(value)
+                    except ValueError:
+                        try:
+                            env_config[config_key] = float(value)
+                        except ValueError:
+                            env_config[config_key] = value
+        
+        return env_config
+    
+    def get_config(self) -> "Config":
+        """
+        获取配置实例。
+        
+        Returns:
+            配置实例
+        """
+        if self._config is None:
+            self.load_config()
+        return self._config
+    
+    def reload_config(self) -> "Config":
+        """
+        重新加载配置。
+        
+        Returns:
+            重新加载后的配置实例
+        """
+        return self.load_config(self._config_file)
+    
+    def save_config(self, config_file: str) -> None:
+        """
+        保存配置到文件。
+        
+        Args:
+            config_file: 配置文件路径
+        """
+        if self._config is None:
+            self.load_config()
+        
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(asdict(self._config), f, indent=2, ensure_ascii=False)
 
 
 @dataclass
@@ -48,7 +157,7 @@ class Config:
     
     # Agent 配置
     max_retries: int = 3
-    timeout: int = 300
+    timeout: int = 180
     max_context_length: int = 4096
     
     # MCP 连接配置（保留用于向后兼容）
@@ -73,8 +182,20 @@ class Config:
         # 确保日志目录存在
         log_dir = os.path.dirname(self.log_file)
         if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+            os.makedirs(log_dir, exist_ok=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        将配置转换为字典。
+        
+        Returns:
+            配置字典
+        """
+        return asdict(self)
 
+
+# 配置管理器实例
+config_manager = ConfigManager()
 
 # 单例配置实例
-config = Config()
+config = config_manager.get_config()

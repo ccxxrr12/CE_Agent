@@ -3,7 +3,11 @@ Cheat Engine AI Agent 的 MCP 客户端。
 
 该模块负责与 MCP_Server 进行通信，包括命令发送、响应处理和连接管理。
 """
-import json
+# 优先使用orjson进行更快的JSON解析
+try:
+    import orjson as json
+except ImportError:
+    import json
 import struct
 import time
 import socket
@@ -12,24 +16,16 @@ import win32file
 import win32pipe
 import win32con
 import pywintypes
-from ..utils.logger import get_logger
+from ...utils.logger import get_logger
 from .command_adapter import MCPCommandAdapter
 from .parameter_validator import MCPParameterValidator
 
 
-class MCPConnectionError(Exception):
-    """MCP连接错误。"""
-    pass
-
-
-class MCPCommandError(Exception):
-    """MCP命令错误。"""
-    pass
-
-
-class MCPTimeoutError(Exception):
-    """MCP命令超时。"""
-    pass
+from ...utils.errors import (
+    MCPConnectionError,
+    MCPCommandError,
+    MCPTimeoutError
+)
 
 
 class MCPBridgeClient:
@@ -169,7 +165,9 @@ class MCPBridgeClient:
         
         try:
             # 将请求序列化为JSON并编码为字节
-            req_json = json.dumps(request).encode('utf-8')
+            req_json = json.dumps(request)
+            if isinstance(req_json, str):
+                req_json = req_json.encode('utf-8')
             # 创建长度头（小端序）
             header = struct.pack('<I', len(req_json))
             
@@ -186,6 +184,10 @@ class MCPBridgeClient:
             if len(resp_header_buffer) < 4:
                 raise MCPConnectionError("来自CE的响应头不完整。")
             
+            # 检查超时
+            if timeout is not None and time.time() - start_time > timeout:
+                raise MCPTimeoutError(f"命令执行超时（{timeout}秒）")
+            
             # 解析响应长度
             resp_len = struct.unpack('<I', resp_header_buffer)[0]
             
@@ -193,8 +195,21 @@ class MCPBridgeClient:
             if resp_len > 16 * 1024 * 1024:  # 限制最大响应大小为16MB
                 raise MCPCommandError(f"响应过大: {resp_len} 字节")
             
-            # 读取响应体
-            resp_body_buffer = win32file.ReadFile(self.handle, resp_len)[1]
+            # 读取响应体，添加超时检查
+            resp_body_buffer = b''
+            remaining_bytes = resp_len
+            while remaining_bytes > 0:
+                # 检查超时
+                if timeout is not None and time.time() - start_time > timeout:
+                    raise MCPTimeoutError(f"命令执行超时（{timeout}秒）")
+                
+                # 每次读取最多4096字节
+                chunk_size = min(4096, remaining_bytes)
+                chunk = win32file.ReadFile(self.handle, chunk_size)[1]
+                if not chunk:
+                    raise MCPConnectionError("连接已关闭，无法读取完整响应")
+                resp_body_buffer += chunk
+                remaining_bytes -= len(chunk)
             
             # 检查超时
             if timeout is not None and time.time() - start_time > timeout:
@@ -242,48 +257,184 @@ class MCPBridgeClient:
 class MCPConnectionPool:
     """MCP连接池，用于管理多个MCP连接。"""
     
-    def __init__(self, pool_size: int = 5, pipe_name: str = r"\\.\pipe\CE_MCP_Bridge_v99"):
+    def __init__(self, pool_size: int = 5, min_size: int = 2, pipe_name: str = r"\\.\\pipe\\CE_MCP_Bridge_v99", max_idle_time: float = 300.0, health_check_interval: float = 30.0):
         """
         初始化连接池。
         
         Args:
-            pool_size: 连接池大小
+            pool_size: 连接池最大大小
+            min_size: 连接池最小大小
             pipe_name: 管道名称
+            max_idle_time: 连接最大空闲时间（秒）
+            health_check_interval: 健康检查间隔（秒）
         """
         self.pool_size = pool_size
+        self.min_size = min_size
         self.pipe_name = pipe_name
+        self.max_idle_time = max_idle_time
+        self.health_check_interval = health_check_interval
         self.pool = []
         self.logger = get_logger(__name__)
+        self.stats = {
+            "total_connections": 0,
+            "active_connections": 0,
+            "idle_connections": 0,
+            "borrowed_connections": 0,
+            "failed_connections": 0,
+            "retries": 0
+        }
+        self.last_health_check = time.time()
         self._initialize_pool()
     
     def _initialize_pool(self) -> None:
         """初始化连接池。"""
-        self.logger.info(f"初始化MCP连接池，大小: {self.pool_size}")
-        for _ in range(self.pool_size):
-            client = MCPBridgeClient(self.pipe_name)
-            if client.connect():
+        self.logger.info(f"初始化MCP连接池，大小: {self.pool_size}, 最小大小: {self.min_size}")
+        # 确保连接池至少有min_size个连接
+        while len(self.pool) < self.min_size:
+            client = self._create_connection()
+            if client:
                 self.pool.append(client)
         
         self.logger.info(f"连接池初始化完成，可用连接数: {len(self.pool)}")
+        self._update_stats()
     
-    def get_connection(self) -> MCPBridgeClient:
+    def _create_connection(self) -> Optional[MCPBridgeClient]:
+        """
+        创建一个新的连接。
+        
+        Returns:
+            MCPBridgeClient实例，如果创建失败则返回None
+        """
+        try:
+            client = MCPBridgeClient(self.pipe_name)
+            if client.connect():
+                # 添加连接创建时间和最后使用时间
+                client.created_at = time.time()
+                client.last_used = time.time()
+                self.stats["total_connections"] += 1
+                return client
+            else:
+                self.stats["failed_connections"] += 1
+                return None
+        except Exception as e:
+            self.logger.error(f"创建连接失败: {e}")
+            self.stats["failed_connections"] += 1
+            return None
+    
+    def _is_connection_healthy(self, client: MCPBridgeClient) -> bool:
+        """
+        检查连接是否健康。
+        
+        Args:
+            client: MCPBridgeClient实例
+            
+        Returns:
+            如果连接健康则返回True，否则返回False
+        """
+        try:
+            # 使用ping命令检查连接是否健康
+            client.ping()
+            return True
+        except Exception as e:
+            self.logger.warning(f"连接健康检查失败: {e}")
+            return False
+    
+    def _update_stats(self) -> None:
+        """更新连接池统计信息。"""
+        self.stats["idle_connections"] = len(self.pool)
+        self.stats["active_connections"] = self.stats["total_connections"] - self.stats["idle_connections"]
+    
+    def _check_health(self) -> None:
+        """执行连接池健康检查。"""
+        current_time = time.time()
+        if current_time - self.last_health_check < self.health_check_interval:
+            return
+        
+        self.logger.debug("执行连接池健康检查...")
+        self.last_health_check = current_time
+        
+        # 检查所有连接
+        healthy_connections = []
+        for client in self.pool:
+            # 检查连接是否超时
+            if current_time - client.last_used > self.max_idle_time:
+                self.logger.info(f"关闭空闲超时连接")
+                client.close()
+                continue
+            
+            # 检查连接是否健康
+            if self._is_connection_healthy(client):
+                healthy_connections.append(client)
+            else:
+                self.logger.info(f"关闭不健康连接")
+                client.close()
+        
+        # 更新连接池
+        self.pool = healthy_connections
+        
+        # 确保连接池至少有min_size个连接
+        self._initialize_pool()
+        self._update_stats()
+    
+    def get_connection(self, timeout: Optional[float] = None, max_retries: int = 3) -> MCPBridgeClient:
         """
         从连接池获取一个连接。
         
+        Args:
+            timeout: 超时时间（秒）
+            max_retries: 最大重试次数
+            
         Returns:
             MCPBridgeClient实例
             
         Raises:
             MCPConnectionError: 如果没有可用连接
         """
-        if not self.pool:
-            # 如果连接池为空，尝试重新初始化
-            self.logger.warning("连接池为空，尝试重新初始化...")
-            self._initialize_pool()
-            if not self.pool:
-                raise MCPConnectionError("无法从连接池获取连接")
+        start_time = time.time()
+        retries = 0
         
-        return self.pool.pop()
+        while True:
+            # 执行健康检查
+            self._check_health()
+            
+            if self.pool:
+                # 获取连接
+                client = self.pool.pop()
+                
+                # 再次检查连接是否健康
+                if self._is_connection_healthy(client):
+                    client.last_used = time.time()
+                    self.stats["borrowed_connections"] += 1
+                    self._update_stats()
+                    return client
+                else:
+                    self.logger.warning(f"获取到不健康连接，关闭并尝试下一个")
+                    client.close()
+                    self.stats["failed_connections"] += 1
+            
+            # 检查是否超时
+            if timeout is not None and time.time() - start_time > timeout:
+                raise MCPTimeoutError(f"获取连接超时（{timeout}秒）")
+            
+            # 检查是否达到最大重试次数
+            retries += 1
+            if retries > max_retries:
+                raise MCPConnectionError(f"无法从连接池获取连接，已重试 {max_retries} 次")
+            
+            # 智能重试机制：基于重试次数调整延迟
+            delay = min(1.0 * (2 ** (retries - 1)), 5.0)  # 指数退避，最大延迟5秒
+            self.logger.warning(f"连接池为空，{delay}秒后重试... (尝试 {retries}/{max_retries})")
+            self.stats["retries"] += 1
+            time.sleep(delay)
+            
+            # 尝试创建新连接
+            self.logger.info(f"尝试创建新连接...")
+            new_client = self._create_connection()
+            if new_client:
+                new_client.last_used = time.time()
+                self.stats["borrowed_connections"] += 1
+                self._update_stats()
+                return new_client
     
     def return_connection(self, client: MCPBridgeClient) -> None:
         """
@@ -292,17 +443,48 @@ class MCPConnectionPool:
         Args:
             client: MCPBridgeClient实例
         """
-        if len(self.pool) < self.pool_size:
-            self.pool.append(client)
-        else:
-            # 连接池已满，关闭多余连接
+        try:
+            # 检查连接是否健康
+            if self._is_connection_healthy(client):
+                # 更新最后使用时间
+                client.last_used = time.time()
+                
+                # 检查连接池是否已满
+                if len(self.pool) < self.pool_size:
+                    self.pool.append(client)
+                else:
+                    # 连接池已满，关闭多余连接
+                    self.logger.info(f"连接池已满，关闭多余连接")
+                    client.close()
+            else:
+                # 连接不健康，直接关闭
+                self.logger.info(f"返回不健康连接，直接关闭")
+                client.close()
+        except Exception as e:
+            self.logger.error(f"返回连接时出错: {e}")
             client.close()
+        
+        self._update_stats()
     
     def close(self) -> None:
         """关闭连接池中的所有连接。"""
+        self.logger.info(f"关闭连接池，共 {len(self.pool)} 个连接")
         for client in self.pool:
-            client.close()
+            try:
+                client.close()
+            except Exception as e:
+                self.logger.error(f"关闭连接时出错: {e}")
         self.pool.clear()
+        self._update_stats()
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        获取连接池统计信息。
+        
+        Returns:
+            连接池统计信息
+        """
+        return self.stats.copy()
     
     def __enter__(self) -> "MCPConnectionPool":
         """进入上下文管理器。"""
