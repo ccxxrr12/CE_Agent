@@ -78,7 +78,9 @@ class ToolExecutor:
                 )
             
             # 执行工具（带超时）
+            self.logger.info(f"开始执行工具: {tool_name}, 超时: {timeout}秒")
             result = self._execute_with_timeout(tool_func, timeout, **kwargs)
+            self.logger.info(f"工具执行完成: {tool_name}, 耗时: {time.time() - start_time:.2f}秒")
             
             execution_time = time.time() - start_time
             

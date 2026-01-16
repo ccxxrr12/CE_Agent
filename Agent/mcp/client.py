@@ -134,6 +134,7 @@ class MCPClient:
         try:
             # 发送请求
             request_json = json.dumps(request)
+            self.logger.info(f"发送 MCP 命令: {method}, 超时: {timeout if timeout else self.config.mcp_connection_timeout}秒")
             self.process.stdin.write(request_json + "\n")
             self.process.stdin.flush()
             
@@ -141,11 +142,14 @@ class MCPClient:
             if timeout is None:
                 timeout = self.config.mcp_connection_timeout
             
+            self.logger.info(f"等待 MCP 响应，超时: {timeout}秒...")
             response_line = self._readline_with_timeout(timeout)
+            
             if not response_line:
                 self.logger.error(f"从 MCP 服务器读取响应失败（超时: {timeout}秒）")
                 return {"error": f"从 MCP 服务器读取响应失败（超时: {timeout}秒）"}
             
+            self.logger.info(f"收到 MCP 响应，长度: {len(response_line)}")
             response = json.loads(response_line.strip())
             
             self.logger.debug(f"MCP 请求: {method} -> 响应: {response}")
