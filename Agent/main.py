@@ -14,9 +14,7 @@ from .core.agent import Agent
 from .mcp.client import MCPClient
 from .llm.client import OllamaClient
 from .llm.volcengine_client import VolcengineClient
-from .tools.registry import ToolRegistry
-from .tools.mcp_basic_tools import register_mcp_tools
-from .tools.mcp_advanced_tools import register_advanced_mcp_tools
+from .tools import ToolRegistry
 from .utils.logger import setup_logging
 from .ui.cli import CLI
 
@@ -53,9 +51,12 @@ def create_agent(config: Config, use_llm: bool = True) -> Agent:
     # 初始化工具注册表
     tool_registry = ToolRegistry()
     
-    # 注册MCP工具
-    register_mcp_tools(tool_registry, mcp_client)
-    register_advanced_mcp_tools(tool_registry, mcp_client)
+    # 从全局注册表获取所有工具
+    from .tools import global_registry
+    # 注册MCP工具到本地注册表
+    for tool_metadata in global_registry.list_all_tools():
+        tool_func = global_registry.get_tool_function(tool_metadata.name)
+        tool_registry.register_tool(tool_metadata, tool_func)
     
     logger.info(f"Registered {len(tool_registry.list_all_tools())} tools")
     
