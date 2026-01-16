@@ -259,7 +259,7 @@ Details:
         # Add tool execution results
         for i, step in enumerate(context.history, 1):
             if step.success and step.result:
-                result_key = f"步骤{i}_结果"
+                result_key = f"step{i}_result"
                 if isinstance(step.result, dict):
                     # 如果结果是字典，添加到详细信息
                     for key, value in step.result.items():
