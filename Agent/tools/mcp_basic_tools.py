@@ -83,7 +83,7 @@ def _register_basic_tools(registry, mcp_client):
     
     def evaluate_lua_impl(mcp_client, script: str):
         try:
-            response = mcp_client.send_command("execute_script", {"script": script})
+            response = mcp_client.send_command("evaluate_lua", {"code": script})
             return response
         except Exception as e:
             return {"error": str(e)}
@@ -115,7 +115,7 @@ def _register_basic_tools(registry, mcp_client):
     
     def auto_assemble_impl(mcp_client, assembly: str, address: str = ""):
         try:
-            params = {"assembly": assembly}
+            params = {"script": assembly}
             if address:
                 params["address"] = address
             response = mcp_client.send_command("auto_assemble", params)
@@ -235,7 +235,7 @@ def _register_memory_read_tools(registry, mcp_client):
     
     def read_string_impl(mcp_client, address: int, length: int = 256):
         try:
-            response = mcp_client.send_command("read_string", {"address": address, "length": length})
+            response = mcp_client.send_command("read_string", {"address": address, "max_length": length, "wide": False})
             return response
         except Exception as e:
             return {"error": str(e)}
@@ -292,7 +292,7 @@ def _register_memory_read_tools(registry, mcp_client):
     def read_pointer_chain_impl(mcp_client, base_address: int, offsets: List[int]):
         try:
             response = mcp_client.send_command("read_pointer_chain", {
-                "base_address": base_address,
+                "base": base_address,
                 "offsets": offsets
             })
             return response
@@ -362,11 +362,12 @@ def _register_pattern_scan_tools(registry, mcp_client):
         examples=['scan_all(value="55 8B EC", scan_type="Array of byte")']
     )
     
-    def scan_all_impl(mcp_client, value: str, scan_type: str = "Auto Assembler"):
+    def scan_all_impl(mcp_client, value: str, scan_type: str = "exact"):
         try:
             response = mcp_client.send_command("scan_all", {
                 "value": value,
-                "scan_type": scan_type
+                "type": scan_type,
+                "protection": "+W-C"
             })
             return response
         except Exception as e:
@@ -394,7 +395,7 @@ def _register_pattern_scan_tools(registry, mcp_client):
     def get_scan_results_impl(mcp_client, max_results: int = 100):
         try:
             response = mcp_client.send_command("get_scan_results", {
-                "max_results": max_results
+                "max": max_results
             })
             return response
         except Exception as e:
@@ -434,10 +435,11 @@ def _register_pattern_scan_tools(registry, mcp_client):
     
     def aob_scan_impl(mcp_client, pattern: str, writable: bool = False, executable: bool = False):
         try:
+            protection = "+W" if writable else ("+X" if executable else "+X")
             response = mcp_client.send_command("aob_scan", {
                 "pattern": pattern,
-                "writable": writable,
-                "executable": executable
+                "protection": protection,
+                "limit": 100
             })
             return response
         except Exception as e:
@@ -471,8 +473,9 @@ def _register_pattern_scan_tools(registry, mcp_client):
     def search_string_impl(mcp_client, search_string: str, case_sensitive: bool = True):
         try:
             response = mcp_client.send_command("search_string", {
-                "search_string": search_string,
-                "case_sensitive": case_sensitive
+                "string": search_string,
+                "wide": False,
+                "limit": 100
             })
             return response
         except Exception as e:
@@ -525,7 +528,9 @@ def _register_pattern_scan_tools(registry, mcp_client):
     
     def get_memory_regions_impl(mcp_client):
         try:
-            response = mcp_client.send_command("get_memory_regions", {})
+            response = mcp_client.send_command("get_memory_regions", {
+                "max": 100
+            })
             return response
         except Exception as e:
             return {"error": str(e)}
@@ -543,7 +548,9 @@ def _register_pattern_scan_tools(registry, mcp_client):
     
     def enum_memory_regions_full_impl(mcp_client):
         try:
-            response = mcp_client.send_command("enum_memory_regions_full", {})
+            response = mcp_client.send_command("enum_memory_regions_full", {
+                "max": 500
+            })
             return response
         except Exception as e:
             return {"error": str(e)}

@@ -152,7 +152,7 @@
         "description": "跟踪多级指针链并解析最终地址",
         "parameters": [
           {
-            "name": "base_address",
+            "name": "base",
             "type": "string|int",
             "required": true,
             "description": "基地址"
@@ -211,17 +211,16 @@
             "name": "type",
             "type": "string",
             "required": false,
-            "default": "dword",
-            "options": ["byte", "word", "dword", "qword", "float", "double", "string"],
-            "description": "数据类型"
-          },
-          {
-            "name": "scan_type",
-            "type": "string",
-            "required": false,
             "default": "exact",
             "options": ["exact", "between", "bigger_than", "smaller_than"],
             "description": "扫描类型"
+          },
+          {
+            "name": "protection",
+            "type": "string",
+            "required": false,
+            "default": "+W-C",
+            "description": "内存保护属性过滤（例如 '+W-C' 表示可写且非写时复制）"
           },
           {
             "name": "start_address",
@@ -254,18 +253,11 @@
         "description": "获取上一次扫描的结果",
         "parameters": [
           {
-            "name": "max_results",
+            "name": "max",
             "type": "int",
             "required": false,
             "default": 100,
             "description": "最大返回结果数"
-          },
-          {
-            "name": "offset",
-            "type": "int",
-            "required": false,
-            "default": 0,
-            "description": "结果偏移量"
           }
         ],
         "returns": {
@@ -284,6 +276,20 @@
             "description": "字节模式，例如 '90 90 90 ?? ?? 90'"
           },
           {
+            "name": "protection",
+            "type": "string",
+            "required": false,
+            "default": "+X",
+            "description": "内存保护属性过滤（例如 '+X' 表示可执行）"
+          },
+          {
+            "name": "limit",
+            "type": "int",
+            "required": false,
+            "default": 100,
+            "description": "最大返回结果数"
+          },
+          {
             "name": "start_address",
             "type": "string|int",
             "required": false,
@@ -294,13 +300,6 @@
             "type": "string|int",
             "required": false,
             "description": "结束地址"
-          },
-          {
-            "name": "alignment",
-            "type": "int",
-            "required": false,
-            "default": 1,
-            "description": "对齐要求"
           }
         ],
         "returns": {
@@ -313,7 +312,7 @@
         "description": "在内存中搜索文本字符串",
         "parameters": [
           {
-            "name": "text",
+            "name": "string",
             "type": "string",
             "required": true,
             "description": "要搜索的文本"
@@ -326,11 +325,11 @@
             "description": "是否搜索宽字符串"
           },
           {
-            "name": "case_sensitive",
-            "type": "bool",
+            "name": "limit",
+            "type": "int",
             "required": false,
-            "default": false,
-            "description": "是否区分大小写"
+            "default": 100,
+            "description": "最大返回结果数"
           },
           {
             "name": "start_address",
@@ -386,16 +385,10 @@
         "description": "列出常见基址附近的有效内存区域",
         "parameters": [
           {
-            "name": "base_address",
-            "type": "string|int",
-            "required": false,
-            "description": "基址"
-          },
-          {
-            "name": "max_regions",
+            "name": "max",
             "type": "int",
             "required": false,
-            "default": 10,
+            "default": 100,
             "description": "最大返回区域数"
           }
         ],
@@ -409,18 +402,11 @@
         "description": "枚举所有内存区域（使用原生 API）",
         "parameters": [
           {
-            "name": "include_free",
-            "type": "bool",
+            "name": "max",
+            "type": "int",
             "required": false,
-            "default": false,
-            "description": "是否包含空闲区域"
-          },
-          {
-            "name": "include_protected",
-            "type": "bool",
-            "required": false,
-            "default": false,
-            "description": "是否包含受保护区域"
+            "default": 500,
+            "description": "最大返回区域数"
           }
         ],
         "returns": {
@@ -537,10 +523,10 @@
             "description": "目标地址"
           },
           {
-            "name": "max_results",
+            "name": "limit",
             "type": "int",
             "required": false,
-            "default": 100,
+            "default": 50,
             "description": "最大结果数"
           }
         ],
@@ -554,13 +540,13 @@
         "description": "查找所有对函数的调用",
         "parameters": [
           {
-            "name": "address",
+            "name": "function_address",
             "type": "string|int",
             "required": true,
             "description": "函数地址"
           },
           {
-            "name": "max_results",
+            "name": "limit",
             "type": "int",
             "required": false,
             "default": 100,
@@ -583,18 +569,11 @@
             "description": "结构体地址"
           },
           {
-            "name": "max_size",
+            "name": "size",
             "type": "int",
             "required": false,
             "default": 256,
-            "description": "最大分析大小"
-          },
-          {
-            "name": "guess_types",
-            "type": "bool",
-            "required": false,
-            "default": true,
-            "description": "是否猜测字段类型"
+            "description": "分析大小"
           }
         ],
         "returns": {
@@ -615,11 +594,31 @@
             "description": "断点地址"
           },
           {
-            "name": "enabled",
+            "name": "id",
+            "type": "string",
+            "required": false,
+            "description": "断点ID（可选，自动生成）"
+          },
+          {
+            "name": "capture_registers",
             "type": "bool",
             "required": false,
             "default": true,
-            "description": "是否启用"
+            "description": "是否捕获寄存器状态"
+          },
+          {
+            "name": "capture_stack",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "是否捕获堆栈信息"
+          },
+          {
+            "name": "stack_depth",
+            "type": "int",
+            "required": false,
+            "default": 16,
+            "description": "堆栈捕获深度"
           }
         ],
         "returns": {
@@ -639,11 +638,17 @@
             "description": "断点地址"
           },
           {
-            "name": "type",
+            "name": "id",
+            "type": "string",
+            "required": false,
+            "description": "断点ID（可选，自动生成）"
+          },
+          {
+            "name": "access_type",
             "type": "string",
             "required": true,
-            "options": ["read", "write", "read_write"],
-            "description": "断点类型"
+            "options": ["r", "w", "rw"],
+            "description": "断点类型 (r: 读取, w: 写入, rw: 读写)"
           },
           {
             "name": "size",
@@ -651,13 +656,6 @@
             "required": false,
             "default": 4,
             "description": "监视大小（字节）"
-          },
-          {
-            "name": "enabled",
-            "type": "bool",
-            "required": false,
-            "default": true,
-            "description": "是否启用"
           }
         ],
         "returns": {
@@ -671,8 +669,8 @@
         "description": "移除断点",
         "parameters": [
           {
-            "name": "breakpoint_id",
-            "type": "int",
+            "name": "id",
+            "type": "string",
             "required": true,
             "description": "断点ID"
           }
@@ -705,17 +703,17 @@
         "description": "获取断点命中信息",
         "parameters": [
           {
-            "name": "breakpoint_id",
-            "type": "int",
+            "name": "id",
+            "type": "string",
             "required": false,
             "description": "特定断点ID（不指定则返回所有）"
           },
           {
-            "name": "max_hits",
-            "type": "int",
+            "name": "clear",
+            "type": "bool",
             "required": false,
-            "default": 100,
-            "description": "最大命中数"
+            "default": false,
+            "description": "获取后是否清空命中记录"
           }
         ],
         "returns": {
@@ -730,7 +728,7 @@
         "description": "将虚拟地址转换为物理地址",
         "parameters": [
           {
-            "name": "virtual_address",
+            "name": "address",
             "type": "string|int",
             "required": true,
             "description": "虚拟地址"
@@ -753,11 +751,11 @@
             "description": "监视地址"
           },
           {
-            "name": "type",
+            "name": "mode",
             "type": "string",
             "required": true,
-            "options": ["read", "write", "execute"],
-            "description": "监视类型"
+            "options": ["r", "w", "x"],
+            "description": "监视类型 (r: 读取, w: 写入, x: 执行)"
           },
           {
             "name": "size",
@@ -765,6 +763,13 @@
             "required": false,
             "default": 4,
             "description": "监视大小"
+          },
+          {
+            "name": "max_entries",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "最大记录条目数"
           }
         ],
         "returns": {
@@ -778,10 +783,10 @@
         "description": "停止 DBVM 监视并获取结果",
         "parameters": [
           {
-            "name": "watch_id",
-            "type": "int",
+            "name": "address",
+            "type": "string|int",
             "required": true,
-            "description": "监视ID"
+            "description": "监视地址"
           }
         ],
         "returns": {
@@ -794,17 +799,17 @@
         "description": "轮询 DBVM 监视日志而不停止",
         "parameters": [
           {
-            "name": "watch_id",
-            "type": "int",
+            "name": "address",
+            "type": "string|int",
             "required": true,
-            "description": "监视ID"
+            "description": "监视地址"
           },
           {
-            "name": "max_entries",
+            "name": "max_results",
             "type": "int",
             "required": false,
-            "default": 100,
-            "description": "最大条目数"
+            "default": 1000,
+            "description": "最大返回结果数"
           }
         ],
         "returns": {

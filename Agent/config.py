@@ -52,7 +52,7 @@ class Config:
     max_context_length: int = 4096
     
     # MCP 连接配置（保留用于向后兼容）
-    mcp_connection_timeout: int = 300
+    mcp_connection_timeout: int = 60
     mcp_retry_delay: float = 1.0
     
     def __post_init__(self):

@@ -168,7 +168,8 @@ def _register_disassemble_tools(registry, mcp_client):
     def find_references_impl(mcp_client, address: int):
         try:
             response = mcp_client.send_command("find_references", {
-                "address": address
+                "address": address,
+                "limit": 50
             })
             return response
         except Exception as e:
@@ -195,7 +196,7 @@ def _register_disassemble_tools(registry, mcp_client):
     def find_call_references_impl(mcp_client, address: int):
         try:
             response = mcp_client.send_command("find_call_references", {
-                "address": address
+                "function_address": address
             })
             return response
         except Exception as e:
@@ -266,9 +267,14 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
     
     def set_breakpoint_impl(mcp_client, address: int, condition: str = ""):
         try:
-            params = {"address": address}
-            if condition:
-                params["condition"] = condition
+            params = {
+                "address": address,
+                "id": None,
+                "capture_registers": True,
+                "capture_stack": False,
+                "stack_depth": 16
+            }
+            # 忽略condition参数，因为服务器端不支持
             response = mcp_client.send_command("set_breakpoint", params)
             return response
         except Exception as e:
@@ -309,8 +315,9 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
         try:
             response = mcp_client.send_command("set_data_breakpoint", {
                 "address": address,
-                "size": size,
-                "access_type": access_type
+                "id": None,
+                "access_type": access_type,
+                "size": size
             })
             return response
         except Exception as e:
@@ -336,8 +343,10 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
     
     def remove_breakpoint_impl(mcp_client, address: int):
         try:
+            # 注意：服务器端期望id参数，但客户端只提供了address
+            # 这里使用address作为id的替代，可能需要进一步改进
             response = mcp_client.send_command("remove_breakpoint", {
-                "address": address
+                "id": str(address)
             })
             return response
         except Exception as e:
@@ -432,7 +441,7 @@ def _register_dbvm_tools(registry, mcp_client):
     def get_physical_address_impl(mcp_client, virtual_address: int):
         try:
             response = mcp_client.send_command("get_physical_address", {
-                "virtual_address": virtual_address
+                "address": virtual_address
             })
             return response
         except Exception as e:
@@ -471,10 +480,11 @@ def _register_dbvm_tools(registry, mcp_client):
     
     def start_dbvm_watch_impl(mcp_client, address: int, size: int, access_type: str = "rw"):
         try:
+            # 服务器端参数名不同：mode 而不是 access_type，并且没有 size 参数
             response = mcp_client.send_command("start_dbvm_watch", {
                 "address": address,
-                "size": size,
-                "access_type": access_type
+                "mode": access_type,
+                "max_entries": 1000
             })
             return response
         except Exception as e:
@@ -528,8 +538,11 @@ def _register_dbvm_tools(registry, mcp_client):
     
     def poll_dbvm_watch_impl(mcp_client, timeout: int = 1000):
         try:
+            # 注意：服务器端期望address和max_results参数，但客户端只提供了timeout
+            # 这里使用默认地址0和将timeout映射到max_results
             response = mcp_client.send_command("poll_dbvm_watch", {
-                "timeout": timeout
+                "address": "0x0",
+                "max_results": timeout
             })
             return response
         except Exception as e:

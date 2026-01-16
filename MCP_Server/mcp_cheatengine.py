@@ -115,15 +115,17 @@ sys.stdout = _mcp_stdout
 def debug_log(msg):
     print(f"[MCP CE] {msg}", file=sys.stderr, flush=True)
 
-# 辅助函数，将结果格式化为适当的JSON字符串供MCP工具使用
+# 辅助函数，将结果格式化为适当的Python对象供MCP工具使用
 def format_result(result):
-    """将CE桥接结果格式化为适当的JSON字符串供AI消费。"""
-    if isinstance(result, dict):
-        return json.dumps(result, indent=None, ensure_ascii=False)
-    elif isinstance(result, str):
-        return result  # 已经是字符串
-    else:
-        return json.dumps(result)
+    """将CE桥接结果格式化为适当的Python对象供AI消费。"""
+    if isinstance(result, str):
+        try:
+            # 如果结果是JSON字符串，解析为Python对象
+            return json.loads(result)
+        except json.JSONDecodeError:
+            # 如果不是有效的JSON，返回原始字符串
+            return result
+    return result  # 已经是Python对象
 
 # ============================================================================
 # 配置

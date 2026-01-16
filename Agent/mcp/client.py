@@ -57,7 +57,7 @@ class MCPClient:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
+                text=False,
                 bufsize=0
             )
             
@@ -68,6 +68,8 @@ class MCPClient:
             if self.process.poll() is not None:
                 # 进程已经退出
                 stderr_output = self.process.stderr.read()
+                if stderr_output:
+                    stderr_output = stderr_output.decode('utf-8')
                 self.logger.error(f"MCP 服务器启动失败: {stderr_output}")
                 return False
             
@@ -135,7 +137,7 @@ class MCPClient:
             # 发送请求
             request_json = json.dumps(request)
             self.logger.info(f"发送 MCP 命令: {method}, 超时: {timeout if timeout else self.config.mcp_connection_timeout}秒")
-            self.process.stdin.write(request_json + "\n")
+            self.process.stdin.write((request_json + "\n").encode('utf-8'))
             self.process.stdin.flush()
             
             # 接收响应（带超时）
@@ -178,7 +180,11 @@ class MCPClient:
         
         def read_line():
             try:
-                result[0] = self.process.stdout.readline()
+                line = self.process.stdout.readline()
+                if line:
+                    result[0] = line.decode('utf-8')
+                else:
+                    result[0] = None
             except Exception as e:
                 exception[0] = e
         
