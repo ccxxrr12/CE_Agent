@@ -6,8 +6,10 @@ Cheat Engine AI Agent 的工具注册表。
 """
 import asyncio
 import inspect
-from typing import Callable, Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any, TypeVar
 from ..models.base import ToolMetadata, ToolCategory, ToolCall
+
+T = TypeVar('T')
 
 
 class ToolRegistry:
@@ -16,9 +18,9 @@ class ToolRegistry:
     def __init__(self):
         """初始化工具注册表。"""
         self._tools: Dict[str, Dict[str, Any]] = {}  # 将工具名称映射到元数据和函数
-        self._categories: Dict[ToolCategory, List[str]] = {}
-        
-    def register_tool(self, metadata: ToolMetadata, func: Callable):
+        self._categories: Dict[ToolCategory, List[str]] = {}  # 按类别组织工具名称
+    
+    def register_tool(self, metadata: ToolMetadata, func: Callable) -> None:
         """
         注册工具及其元数据。
         
@@ -35,8 +37,9 @@ class ToolRegistry:
         # 添加到类别映射
         if metadata.category not in self._categories:
             self._categories[metadata.category] = []
-        self._categories[metadata.category].append(metadata.name)
-        
+        if metadata.name not in self._categories[metadata.category]:
+            self._categories[metadata.category].append(metadata.name)
+    
     def get_tool(self, name: str) -> Optional[Dict[str, Any]]:
         """
         按名称获取工具。
@@ -161,7 +164,8 @@ class ToolRegistry:
             return await func(**kwargs)
         else:
             # 如果不是协程，在线程池中运行它
-            return func(**kwargs)
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, func, **kwargs)
     
     def validate_parameters(self, name: str, params: Dict[str, Any]) -> bool:
         """

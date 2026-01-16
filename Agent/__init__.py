@@ -10,6 +10,6 @@ __author__ = "Cheat Engine MCP Bridge Team"
 from .config import Config
 from .mcp import MCPClient
 from .llm import OllamaClient
-from .tools import ToolRegistry
+from .tools.base.tool_registry import ToolRegistry
 from .core import Agent, AgentStatus
 from .ui import CLI

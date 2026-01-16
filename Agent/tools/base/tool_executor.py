@@ -7,10 +7,10 @@ Cheat Engine AI Agent 的工具执行器。
 import asyncio
 import time
 import threading
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from ..models.base import ToolResult, ToolCall, ToolMetadata
 from ..utils.logger import get_logger
-from .registry import ToolRegistry
+from .tool_registry import ToolRegistry
 
 
 class ToolExecutor:
@@ -194,8 +194,8 @@ class ToolExecutor:
                     error=error_msg
                 )
             
-            # 执行工具（应该是异步的）
-            result = await tool_func(mcp_client=self.mcp_client, **kwargs)
+            # 执行工具
+            result = await self._execute_async_impl(tool_func, **kwargs)
             
             execution_time = time.time() - start_time
             
@@ -219,6 +219,24 @@ class ToolExecutor:
                 error=error_msg,
                 execution_time=execution_time
             )
+    
+    async def _execute_async_impl(self, func: callable, **kwargs) -> Any:
+        """
+        异步执行函数的实现。
+        
+        Args:
+            func: 要执行的函数
+            **kwargs: 函数的参数
+            
+        Returns:
+            函数执行的结果
+        """
+        if asyncio.iscoroutinefunction(func):
+            return await func(mcp_client=self.mcp_client, **kwargs)
+        else:
+            # 如果不是协程，在线程池中运行它
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, func, mcp_client=self.mcp_client, **kwargs)
     
     def execute_batch(self, calls: List[ToolCall]) -> List[ToolResult]:
         """

@@ -6,7 +6,7 @@ Cheat Engine AI Agent 的结果解析器。
 """
 import json
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from ..models.base import ToolResult, ToolMetadata
 from ..utils.logger import get_logger
 
@@ -277,7 +277,7 @@ class ResultParser:
         else:
             return f"Error: {result.error}"
     
-    def extract_addresses(self, result: ToolResult) -> list:
+    def extract_addresses(self, result: ToolResult) -> List[str]:
         """
         Extract memory addresses from a result.
         
