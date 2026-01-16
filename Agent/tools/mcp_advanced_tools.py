@@ -255,26 +255,45 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
                 description="The address to set the breakpoint at"
             ),
             Parameter(
-                name="condition",
+                name="id",
                 type="string",
                 required=False,
-                default="",
-                description="Optional condition for the breakpoint"
+                description="Optional breakpoint ID (auto-generated if not provided)"
+            ),
+            Parameter(
+                name="capture_registers",
+                type="boolean",
+                required=False,
+                default=True,
+                description="Whether to capture register state when breakpoint hits"
+            ),
+            Parameter(
+                name="capture_stack",
+                type="boolean",
+                required=False,
+                default=False,
+                description="Whether to capture stack information when breakpoint hits"
+            ),
+            Parameter(
+                name="stack_depth",
+                type="integer",
+                required=False,
+                default=16,
+                description="Stack capture depth when capture_stack is enabled"
             )
         ],
-        examples=["set_breakpoint(address=0x77190000)", 'set_breakpoint(address=0x77190000, condition="eax == 0")']
+        examples=["set_breakpoint(address=0x77190000)", "set_breakpoint(address=0x77190000, capture_registers=True, capture_stack=True, stack_depth=32)"]
     )
     
-    def set_breakpoint_impl(mcp_client, address: int, condition: str = ""):
+    def set_breakpoint_impl(mcp_client, address: int, id: Optional[str] = None, capture_registers: bool = True, capture_stack: bool = False, stack_depth: int = 16):
         try:
             params = {
                 "address": address,
-                "id": None,
-                "capture_registers": True,
-                "capture_stack": False,
-                "stack_depth": 16
+                "id": id,
+                "capture_registers": capture_registers,
+                "capture_stack": capture_stack,
+                "stack_depth": stack_depth
             }
-            # 忽略condition参数，因为服务器端不支持
             response = mcp_client.send_command("set_breakpoint", params)
             return response
         except Exception as e:
@@ -295,27 +314,34 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
                 description="The address to set the data breakpoint at"
             ),
             Parameter(
-                name="size",
-                type="integer",
-                required=True,
-                description="The size of the memory region to watch"
+                name="id",
+                type="string",
+                required=False,
+                description="Optional breakpoint ID (auto-generated if not provided)"
             ),
             Parameter(
                 name="access_type",
                 type="string",
-                required=False,
-                default="rw",
+                required=True,
+                options=["r", "w", "rw"],
                 description="The type of access to break on (r=read, w=write, rw=read/write)"
+            ),
+            Parameter(
+                name="size",
+                type="integer",
+                required=False,
+                default=4,
+                description="The size of the memory region to watch (1, 2, 4 or 8 bytes)"
             )
         ],
-        examples=["set_data_breakpoint(address=0x77190000, size=4, access_type=\"rw\")"]
+        examples=["set_data_breakpoint(address=0x77190000, access_type=\"w\")", "set_data_breakpoint(address=0x77190000, access_type=\"rw\", size=4)"]
     )
     
-    def set_data_breakpoint_impl(mcp_client, address: int, size: int, access_type: str = "rw"):
+    def set_data_breakpoint_impl(mcp_client, address: int, access_type: str, id: Optional[str] = None, size: int = 4):
         try:
             response = mcp_client.send_command("set_data_breakpoint", {
                 "address": address,
-                "id": None,
+                "id": id,
                 "access_type": access_type,
                 "size": size
             })
@@ -329,24 +355,22 @@ def _register_breakpoint_debug_tools(registry, mcp_client):
     remove_breakpoint_metadata = ToolMetadata(
         name="remove_breakpoint",
         category=ToolCategory.BREAKPOINT_DEBUG,
-        description="Remove a breakpoint at a specific address.",
+        description="Remove a breakpoint by ID.",
         parameters=[
             Parameter(
-                name="address",
-                type="integer",
+                name="id",
+                type="string",
                 required=True,
-                description="The address of the breakpoint to remove"
+                description="The ID of the breakpoint to remove"
             )
         ],
-        examples=["remove_breakpoint(address=0x77190000)"]
+        examples=["remove_breakpoint(id='bp123')"]
     )
     
-    def remove_breakpoint_impl(mcp_client, address: int):
+    def remove_breakpoint_impl(mcp_client, id: str):
         try:
-            # 注意：服务器端期望id参数，但客户端只提供了address
-            # 这里使用address作为id的替代，可能需要进一步改进
             response = mcp_client.send_command("remove_breakpoint", {
-                "id": str(address)
+                "id": id
             })
             return response
         except Exception as e:
@@ -429,19 +453,19 @@ def _register_dbvm_tools(registry, mcp_client):
         description="Get the physical address for a virtual address.",
         parameters=[
             Parameter(
-                name="virtual_address",
+                name="address",
                 type="integer",
                 required=True,
                 description="The virtual address to translate"
             )
         ],
-        examples=["get_physical_address(virtual_address=0x77190000)"]
+        examples=["get_physical_address(address=0x77190000)"]
     )
     
-    def get_physical_address_impl(mcp_client, virtual_address: int):
+    def get_physical_address_impl(mcp_client, address: int):
         try:
             response = mcp_client.send_command("get_physical_address", {
-                "address": virtual_address
+                "address": address
             })
             return response
         except Exception as e:
@@ -462,29 +486,29 @@ def _register_dbvm_tools(registry, mcp_client):
                 description="The address to watch"
             ),
             Parameter(
-                name="size",
-                type="integer",
+                name="mode",
+                type="string",
                 required=True,
-                description="The size of the region to watch"
+                options=["r", "w", "x"],
+                description="The type of access to monitor (r=read, w=write, x=execute)"
             ),
             Parameter(
-                name="access_type",
-                type="string",
+                name="max_entries",
+                type="integer",
                 required=False,
-                default="rw",
-                description="The type of access to monitor (r=read, w=write, rw=read/write)"
+                default=1000,
+                description="Maximum number of entries to record"
             )
         ],
-        examples=["start_dbvm_watch(address=0x77190000, size=256, access_type=\"rw\")"]
+        examples=["start_dbvm_watch(address=0x77190000, mode=\"w\")", "start_dbvm_watch(address=0x77190000, mode=\"r\", max_entries=500)"]
     )
     
-    def start_dbvm_watch_impl(mcp_client, address: int, size: int, access_type: str = "rw"):
+    def start_dbvm_watch_impl(mcp_client, address: int, mode: str = "w", max_entries: int = 1000):
         try:
-            # 服务器端参数名不同：mode 而不是 access_type，并且没有 size 参数
             response = mcp_client.send_command("start_dbvm_watch", {
                 "address": address,
-                "mode": access_type,
-                "max_entries": 1000
+                "mode": mode,
+                "max_entries": max_entries
             })
             return response
         except Exception as e:
@@ -526,23 +550,27 @@ def _register_dbvm_tools(registry, mcp_client):
         description="Poll for changes detected by DBVM watch.",
         parameters=[
             Parameter(
-                name="timeout",
+                name="address",
+                type="integer",
+                required=True,
+                description="The address of the watched region"
+            ),
+            Parameter(
+                name="max_results",
                 type="integer",
                 required=False,
                 default=1000,
-                description="Timeout in milliseconds to wait for changes"
+                description="Maximum number of results to return"
             )
         ],
-        examples=["poll_dbvm_watch(timeout=2000)"]
+        examples=["poll_dbvm_watch(address=0x77190000)", "poll_dbvm_watch(address=0x77190000, max_results=500)"]
     )
     
-    def poll_dbvm_watch_impl(mcp_client, timeout: int = 1000):
+    def poll_dbvm_watch_impl(mcp_client, address: int, max_results: int = 1000):
         try:
-            # 注意：服务器端期望address和max_results参数，但客户端只提供了timeout
-            # 这里使用默认地址0和将timeout映射到max_results
             response = mcp_client.send_command("poll_dbvm_watch", {
-                "address": "0x0",
-                "max_results": timeout
+                "address": address,
+                "max_results": max_results
             })
             return response
         except Exception as e:

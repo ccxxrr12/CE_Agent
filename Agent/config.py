@@ -48,11 +48,11 @@ class Config:
     
     # Agent 配置
     max_retries: int = 3
-    timeout: int = 900
+    timeout: int = 300
     max_context_length: int = 4096
     
     # MCP 连接配置（保留用于向后兼容）
-    mcp_connection_timeout: int = 60
+    mcp_connection_timeout: int = 300
     mcp_retry_delay: float = 1.0
     
     def __post_init__(self):

@@ -83,7 +83,7 @@ def _register_basic_tools(registry, mcp_client):
     
     def evaluate_lua_impl(mcp_client, script: str):
         try:
-            response = mcp_client.send_command("evaluate_lua", {"code": script})
+            response = mcp_client.send_command("evaluate_lua", {"script": script})
             return response
         except Exception as e:
             return {"error": str(e)}
@@ -352,23 +352,30 @@ def _register_pattern_scan_tools(registry, mcp_client):
                 description="The value to search for"
             ),
             Parameter(
-                name="scan_type",
+                name="type",
                 type="string",
                 required=False,
-                default="Auto Assembler",
-                description="The type of scan to perform"
+                default="exact",
+                description="The type of scan to perform (exact, string, array)"
+            ),
+            Parameter(
+                name="protection",
+                type="string",
+                required=False,
+                default="+W-C",
+                description="Memory protection filter (e.g., +W-C for writable, non-copy-on-write)"
             )
         ],
-        examples=['scan_all(value="55 8B EC", scan_type="Array of byte")']
+        examples=['scan_all(value="55 8B EC", type="array")', 'scan_all(value="100", type="exact", protection="+W-C")']
     )
     
-    def scan_all_impl(mcp_client, value: str, scan_type: str = "exact"):
+    def scan_all_impl(mcp_client, value: str, type: str = "exact", protection: str = "+W-C"):
         try:
             response = mcp_client.send_command("scan_all", {
                 "value": value,
-                "type": scan_type,
-                "protection": "+W-C"
-            })
+                "type": type,
+                "protection": protection
+            }, timeout=300)  # 增加超时时间到300秒
             return response
         except Exception as e:
             return {"error": str(e)}

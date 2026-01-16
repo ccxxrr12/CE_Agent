@@ -330,18 +330,6 @@
             "required": false,
             "default": 100,
             "description": "最大返回结果数"
-          },
-          {
-            "name": "start_address",
-            "type": "string|int",
-            "required": false,
-            "description": "起始地址"
-          },
-          {
-            "name": "end_address",
-            "type": "string|int",
-            "required": false,
-            "description": "结束地址"
           }
         ],
         "returns": {
@@ -358,20 +346,6 @@
             "type": "string|int",
             "required": true,
             "description": "目标地址"
-          },
-          {
-            "name": "size",
-            "type": "int",
-            "required": false,
-            "default": 32,
-            "description": "签名大小（字节数）"
-          },
-          {
-            "name": "wildcard_percentage",
-            "type": "float",
-            "required": false,
-            "default": 0.3,
-            "description": "通配符百分比"
           }
         ],
         "returns": {
@@ -544,13 +518,6 @@
             "type": "string|int",
             "required": true,
             "description": "函数地址"
-          },
-          {
-            "name": "limit",
-            "type": "int",
-            "required": false,
-            "default": 100,
-            "description": "最大结果数"
           }
         ],
         "returns": {
@@ -879,7 +846,7 @@
         "description": "在 Cheat Engine 中执行任意 Lua 代码",
         "parameters": [
           {
-            "name": "code",
+            "name": "script",
             "type": "string",
             "required": true,
             "description": "Lua 代码"
